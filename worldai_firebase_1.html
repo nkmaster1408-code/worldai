@@ -278,7 +278,7 @@ import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, orderBy, que
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBvFLNys3uWhfqhl5WMwAwm7Py8TeVi92w",
+    apiKey: "AIzaSyBXoibmkjQ_PtKXj9m6ny_vpdrvWVedUmk",
     authDomain: "nkmaster1408-code.github.io",
     projectId: "worldai-bb5e4",
     storageBucket: "worldai-bb5e4.firebasestorage.app",
@@ -620,6 +620,7 @@ function mdToHtml(text) {
 }
 
 // ── COUNTRY SEARCH ──
+const GEMINI_KEY_SEARCH = 'AIzaSyD0_JjKDzXJDH2-7Xtmn9QlaGPEuKsbvdw';
 
 window.searchCountryName = (name) => {
     document.getElementById('country-input').value = name;
@@ -636,27 +637,28 @@ window.searchCountry = async () => {
     loading.style.display = 'block';
     result.style.display = 'none';
     try {
-        const res = await fetch('https://gemini-proxy.nkmaster1408.workers.dev', {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY_SEARCH}`;
+        const res = await fetch(url, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }] }]
-        })
-});
-
+                contents: [{ role: 'user', parts: [{ text: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }] }]
+            })
+        });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
-        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных')
-            .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных';
         loading.style.display = 'none';
         result.style.display = 'block';
-        resultText.innerHTML = text;
+        resultText.innerHTML = mdToHtml(text);
+        result.scrollIntoView({ behavior: 'smooth' });
     } catch(e) {
         loading.style.display = 'none';
         result.style.display = 'block';
-        resultText.innerHTML = '<span style="color:red">Ошибка: ' + e.message + '</span>';
+        resultText.innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
     }
 };
+
+// ── MAP ──
 let historicalLayer = null;
 let currentYear = 2000;
 
@@ -760,7 +762,7 @@ function addCountryLabels(geojson, map) {
             const marker = L.marker(center, {
                 icon: L.divIcon({
                     className: '',
-                    html: '<div class="clabel">' + String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>',
+                    html: '<div class="clabel">' + name + '</div>',
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
                 }),
@@ -778,31 +780,27 @@ let mapPopup = null;
 
 async function showCountryHistory(countryName, latlng) {
     if (mapPopup) { map.closePopup(mapPopup); }
-    const safeCountryName = String(countryName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + safeCountryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
+    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + countryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
     mapPopup = L.popup({ maxWidth: 360 }).setLatLng(latlng).setContent(loadingHtml).openOn(map);
     try {
-        const res = await fetch('https://gemini-proxy.nkmaster1408.workers.dev', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts: [{ text: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }] }]
-    })
-});
-
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_KEY_SEARCH;
+        const res = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }] }] })
+        });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
         const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных')
             .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
         const html = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px;max-width:340px">'
             + '<div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div>'
-            + '<b style="font-size:15px;color:#111">' + safeCountryName + '</b>'
+            + '<b style="font-size:15px;color:#111">' + countryName + '</b>'
             + '<div style="margin-top:10px;font-size:13px;line-height:1.7;color:#333">' + text + '</div>'
             + '<div style="margin-top:12px"><button onclick="window.setTab(\'sec-search\',\'nav-search\');" style="background:#00e676;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">Подробнее →</button></div>'
             + '</div>';
         mapPopup.setContent(html);
     } catch(e) {
-        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + safeCountryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + escHtml(e.message) + '</span></div>');
+        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + countryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + e.message + '</span></div>');
     }
 }
 
