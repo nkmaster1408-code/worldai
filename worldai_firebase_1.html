@@ -109,8 +109,11 @@
             aside.open ~ .mob-overlay { display: block; }
             main { width: 100%; }
             .mob-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 600; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; width: 38px; height: 38px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
-            .messages-area { padding: 60px 12px 20px; }
-            .input-area { padding: 10px 12px 16px; }
+            .messages-area { padding: 60px 12px 100px; }
+            .input-area { padding: 10px 12px 16px; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); z-index: 100; }
+            .input-outer { max-width: 100%; }
+            .input-wrap { border-radius: 10px; }
+            #user-input { font-size: 16px; }
             .chips { flex-direction: column; align-items: center; }
             .chip { width: 90%; text-align: center; }
             .welcome { margin: 40px auto 0; padding: 0 8px; }
