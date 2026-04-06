@@ -8,6 +8,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root { --sidebar-w: 260px; --bg: #0a0a0a; --sidebar-bg: #111111; --card-bg: #181818; --border: #2a2a2a; --green: #00e676; --text: #e8e8e8; --muted: #666; --danger: #ff4444; }
+        :root.light { --bg: #f5f5f5; --sidebar-bg: #ffffff; --card-bg: #eeeeee; --border: #dddddd; --text: #111111; --muted: #888; }
+        .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; transition: .15s; font-family: 'Manrope', sans-serif; margin-bottom: 8px; width: 100%; text-align: left; }
+        .theme-btn:hover { border-color: var(--green); color: var(--green); }
+        .copy-btn { background: none; border: none; color: #444; font-size: 11px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: .15s; font-family: 'Manrope', sans-serif; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; }
+        .copy-btn:hover { color: var(--green); }
+        .speak-btn { background: none; border: none; color: #444; font-size: 11px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: .15s; font-family: 'Manrope', sans-serif; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; }
+        .speak-btn:hover { color: var(--green); }
+        .speak-btn.speaking { color: var(--green); }
+        .msg-actions { display: flex; gap: 4px; margin-top: 6px; }
+        .hist-rename { background: none; border: none; color: #444; font-size: 10px; cursor: pointer; padding: 2px 4px; border-radius: 3px; flex-shrink: 0; display: none; }
+        .hist-delete { background: none; border: none; color: #444; font-size: 10px; cursor: pointer; padding: 2px 4px; border-radius: 3px; flex-shrink: 0; display: none; }
+        .history-item:hover .hist-rename, .history-item:hover .hist-delete { display: inline; }
+        .hist-rename:hover { color: var(--green); }
+        .hist-delete:hover { color: var(--danger); }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { height: 100%; width: 100%; background: var(--bg); color: var(--text); font-family: 'Manrope', sans-serif; display: flex; overflow: hidden; }
 
@@ -38,7 +52,6 @@
         .history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
         .history-list::-webkit-scrollbar { width: 4px; }
         .history-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-        .history-item { padding: 9px 12px; font-size: 12px; color: #777; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 6px; transition: .15s; display: flex; align-items: center; gap: 8px; }
         .history-item:hover { background: #1e1e1e; color: var(--text); }
         .history-item.active-hist { color: var(--green); background: #1e2e1e; }
         .hist-dot { width: 6px; height: 6px; border-radius: 50%; background: #333; flex-shrink: 0; }
@@ -130,6 +143,7 @@
         <span class="user-name" id="user-name"></span>
         <button class="logout-btn" onclick="signOut()">Выйти</button>
     </div>
+    <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Тёмная тема</button>
     <button class="new-chat-btn" onclick="newChat()">＋ Новый чат</button>
     <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>💬</span><span>ИИ Чат</span></div>
     <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>🌐</span><span>Карта мира</span></div>
@@ -299,7 +313,7 @@ function renderHistory() {
     sessions.forEach(s => {
         const item = document.createElement('div');
         item.className = 'history-item' + (s.id === currentSessionId ? ' active-hist' : '');
-        item.innerHTML = `<div class="hist-dot"></div><span style="overflow:hidden;text-overflow:ellipsis">${escHtml(s.title)}</span>`;
+        item.innerHTML = `<div class="hist-dot"></div><span style="overflow:hidden;text-overflow:ellipsis;flex:1">${escHtml(s.title)}</span><button class="hist-rename" onclick="event.stopPropagation();renameSession(${s.id})" title="Переименовать">✏️</button><button class="hist-delete" onclick="event.stopPropagation();deleteOneSession(${s.id})" title="Удалить">🗑</button>`;
         item.onclick = () => loadSession(s.id);
         list.appendChild(item);
     });
@@ -332,7 +346,8 @@ function appendMessage(type, text, animate = true) {
         div.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
     } else {
         div.classList.add('msg-ai');
-        div.innerHTML = `<div class="ai-label">◆ WORLDAI</div><div class="ai-text">${mdToHtml(text)}</div>`;
+        const msgId = 'msg-' + Date.now();
+        div.innerHTML = `<div class="ai-label">◆ WORLDAI</div><div class="ai-text" id="${msgId}">${mdToHtml(text)}</div><div class="msg-actions"><button class="copy-btn" onclick="copyMsg('${msgId}')">📋 Копировать</button><button class="speak-btn" onclick="speakMsg('${msgId}', this)">🔊 Озвучить</button></div>`;
     }
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
 }
@@ -385,6 +400,61 @@ async function sendMessage() {
 window.sendMessage = sendMessage;
 window.handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 window.autoResize = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; };
+
+// ── THEME ──
+window.toggleTheme = () => {
+    const isLight = document.documentElement.classList.toggle('light');
+    document.getElementById('theme-btn').textContent = isLight ? '🌑 Тёмная тема' : '🌙 Тёмная тема';
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+};
+if (localStorage.getItem('theme') === 'light') {
+    document.documentElement.classList.add('light');
+    setTimeout(() => { const b = document.getElementById('theme-btn'); if(b) b.textContent = '🌑 Тёмная тема'; }, 100);
+}
+
+// ── COPY ──
+window.copyMsg = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.innerText).then(() => {
+        const btn = el.parentElement.querySelector('.copy-btn');
+        if (btn) { btn.textContent = '✅ Скопировано'; setTimeout(() => btn.textContent = '📋 Копировать', 2000); }
+    });
+};
+
+// ── SPEAK ──
+let currentUtterance = null;
+window.speakMsg = (id, btn) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (currentUtterance) { speechSynthesis.cancel(); currentUtterance = null; document.querySelectorAll('.speak-btn').forEach(b => { b.textContent = '🔊 Озвучить'; b.classList.remove('speaking'); }); return; }
+    const utterance = new SpeechSynthesisUtterance(el.innerText);
+    utterance.lang = 'ru-RU';
+    utterance.onend = () => { btn.textContent = '🔊 Озвучить'; btn.classList.remove('speaking'); currentUtterance = null; };
+    currentUtterance = utterance;
+    btn.textContent = '⏹ Остановить'; btn.classList.add('speaking');
+    speechSynthesis.speak(utterance);
+};
+
+// ── RENAME SESSION ──
+window.renameSession = async (id) => {
+    const s = sessions.find(x => x.id === id);
+    if (!s) return;
+    const newTitle = prompt('Новое название:', s.title);
+    if (!newTitle || !newTitle.trim()) return;
+    s.title = newTitle.trim().slice(0, 45);
+    await saveSess(s);
+    renderHistory();
+};
+
+// ── DELETE ONE SESSION ──
+window.deleteOneSession = async (id) => {
+    if (!confirm('Удалить этот чат?')) return;
+    await deleteSess(id);
+    sessions = sessions.filter(s => s.id !== id);
+    if (currentSessionId === id) newChat();
+    else renderHistory();
+};
 
 function escHtml(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function mdToHtml(text) {
