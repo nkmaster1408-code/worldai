@@ -620,7 +620,6 @@ function mdToHtml(text) {
 }
 
 // ── COUNTRY SEARCH ──
-const GEMINI_KEY_SEARCH = 'AIzaSyD0_JjKDzXJDH2-7Xtmn9QlaGPEuKsbvdw';
 
 window.searchCountryName = (name) => {
     document.getElementById('country-input').value = name;
@@ -637,28 +636,27 @@ window.searchCountry = async () => {
     loading.style.display = 'block';
     result.style.display = 'none';
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY_SEARCH}`;
-        const res = await fetch(url, {
+        const res = await fetch('https://gemini-proxy.nkmaster1408.workers.dev', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }] }]
-            })
-        });
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }] }]
+        })
+});
+
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных';
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных')
+            .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
         loading.style.display = 'none';
         result.style.display = 'block';
-        resultText.innerHTML = mdToHtml(text);
-        result.scrollIntoView({ behavior: 'smooth' });
+        resultText.innerHTML = text;
     } catch(e) {
         loading.style.display = 'none';
         result.style.display = 'block';
-        resultText.innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
+        resultText.innerHTML = '<span style="color:red">Ошибка: ' + e.message + '</span>';
     }
 };
-
-// ── MAP ──
 let historicalLayer = null;
 let currentYear = 2000;
 
@@ -783,11 +781,14 @@ async function showCountryHistory(countryName, latlng) {
     const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + countryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
     mapPopup = L.popup({ maxWidth: 360 }).setLatLng(latlng).setContent(loadingHtml).openOn(map);
     try {
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_KEY_SEARCH;
-        const res = await fetch(url, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }] }] })
-        });
+        const res = await fetch('https://gemini-proxy.nkmaster1408.workers.dev', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }] }]
+    })
+});
+
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
         const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных')
