@@ -596,11 +596,13 @@ async function loadHistBorders(year) {
         const data = await res.json();
         if (histLayer) histMap.removeLayer(histLayer);
         histLayer = L.geoJSON(data, {
-            style: { color: '#00e676', weight: 1, fillColor: '#1a2a1a', fillOpacity: 0.5 },
+            style: { color: '#00e676', weight: 1, fillColor: '#0a1a0a', fillOpacity: 0.6 },
             onEachFeature: (feature, layer) => {
-                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || 'Unknown';
-                layer.bindPopup(`<div style="font-family:sans-serif;padding:4px"><b style="color:#000">${name}</b></div>`);
-                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.75, fillColor: '#00e676' }); });
+                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || '';
+                if (name) {
+                    layer.bindPopup(`<div style="font-family:sans-serif;padding:4px"><b style="color:#000">${name}</b></div>`);
+                }
+                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.85, fillColor: '#00e676' }); });
                 layer.on('mouseout', function() { histLayer.resetStyle(this); });
             }
         }).addTo(histMap);
