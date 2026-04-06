@@ -101,13 +101,8 @@
         .send-btn svg { fill: #000; width: 18px; height: 18px; }
         .input-hint { text-align: center; font-size: 11px; color: #333; margin-top: 8px; }
         #map { width: 100%; height: 100%; }
-        #hist-map { width: 100%; height: 100%; }
-        .hist-controls { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1000; background: #111; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.5); }
-        .hist-controls input[type=range] { width: 220px; accent-color: #00e676; }
-        .hist-year-display { font-family: 'Space Mono', monospace; color: #00e676; font-size: 22px; font-weight: 700; min-width: 60px; text-align: center; }
-        .hist-controls label { color: #666; font-size: 12px; }
-        #sec-hist { position: relative; }
         #sec-map { position: relative; }
+        #sec-search { background: var(--bg); }
         #year-input::-webkit-inner-spin-button { opacity: 1; }
         .mob-toggle { display: none; }
         @media (max-width: 700px) {
@@ -175,7 +170,7 @@
     <button class="new-chat-btn" onclick="newChat()">＋ Новый чат</button>
     <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>💬</span><span>ИИ Чат</span></div>
     <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>🌐</span><span>Карта мира</span></div>
-    <div class="nav-item" id="nav-hist" onclick="setTab('sec-hist','nav-hist')"><span>📅</span><span>История границ</span></div>
+    <div class="nav-item" id="nav-search" onclick="setTab('sec-search','nav-search')"><span>🔍</span><span>Поиск стран</span></div>
     <div class="divider"></div>
     <div class="history-label">История</div>
     <div class="history-list" id="history-list"></div>
@@ -222,6 +217,40 @@
         </div>
         <div id="map-loading" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 16px;color:#00e676;font-size:12px;font-family:'Space Mono',monospace;">Загрузка...</div>
         <div id="map"></div>
+    </section>
+    <section id="sec-search" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+        <div style="width:100%;max-width:700px;">
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🔍 ПОИСК СТРАН</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Введи название страны — ИИ расскажет её историю</p>
+            <div style="display:flex;gap:10px;margin-bottom:28px;">
+                <input id="country-input" type="text" placeholder="Например: Казахстан, Япония, Египет..."
+                    style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"
+                    onkeydown="if(event.key==='Enter')searchCountry()"/>
+                <button onclick="searchCountry()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Искать</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:32px;" id="country-chips">
+                <span onclick="searchCountryName('Казахстан')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇰🇿 Казахстан</span>
+                <span onclick="searchCountryName('Россия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇷🇺 Россия</span>
+                <span onclick="searchCountryName('Япония')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇯🇵 Япония</span>
+                <span onclick="searchCountryName('Египет')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇪🇬 Египет</span>
+                <span onclick="searchCountryName('США')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇺🇸 США</span>
+                <span onclick="searchCountryName('Китай')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇨🇳 Китай</span>
+                <span onclick="searchCountryName('Турция')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇹🇷 Турция</span>
+                <span onclick="searchCountryName('Германия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇩🇪 Германия</span>
+            </div>
+            <div id="search-result" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;">
+                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">◆ WORLDAI</div>
+                <div id="search-result-text" style="font-size:15px;line-height:1.85;color:var(--text);"></div>
+            </div>
+            <div id="search-loading" style="display:none;text-align:center;padding:40px;color:var(--muted);">
+                <div style="display:inline-flex;gap:6px;align-items:center;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
+                    <span style="margin-left:10px;font-size:14px;">Изучаю историю...</span>
+                </div>
+            </div>
+        </div>
     </section>
 </main>
 
@@ -358,7 +387,7 @@ window.setTab = (sectionId, navId) => {
     document.getElementById(sectionId).classList.add('active');
     document.getElementById(navId).classList.add('active');
     if (sectionId === 'sec-map') initMap();
-    if (sectionId === 'sec-hist') initHistMap();
+    if (sectionId === 'sec-search') { setTimeout(() => document.getElementById('country-input').focus(), 100); }
 };
 
 // ── NEW CHAT ──
@@ -571,52 +600,44 @@ function mdToHtml(text) {
     return h;
 }
 
-// ── HISTORY MAP ──
-let histMap = null;
-let histLayer = null;
-const YEARS = [1,200,400,600,800,1000,1100,1200,1279,1300,1400,1492,1500,1530,1600,1650,1700,1715,1783,1800,1815,1880,1900,1910,1920,1930,1938,1945,1960,1994,2000,2010,2019];
+// ── COUNTRY SEARCH ──
+const GEMINI_KEY_SEARCH = 'AIzaSyCyW1Q3ruziNyo-RQdYMHW3PgjUnN1BhV8';
 
-function nearestYear(y) {
-    return YEARS.reduce((a, b) => Math.abs(b - y) < Math.abs(a - y) ? b : a);
-}
-
-window.updateYear = (val) => {
-    document.getElementById('year-display').textContent = val;
-    clearTimeout(window._yearTimer);
-    window._yearTimer = setTimeout(() => loadHistBorders(parseInt(val)), 400);
+window.searchCountryName = (name) => {
+    document.getElementById('country-input').value = name;
+    searchCountry();
 };
 
-async function loadHistBorders(year) {
-    if (!histMap) return;
-    const y = nearestYear(year);
-    const url = `https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_${y}.geojson`;
+window.searchCountry = async () => {
+    const input = document.getElementById('country-input');
+    const country = input.value.trim();
+    if (!country) return;
+    const loading = document.getElementById('search-loading');
+    const result = document.getElementById('search-result');
+    const resultText = document.getElementById('search-result-text');
+    loading.style.display = 'block';
+    result.style.display = 'none';
     try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('no data');
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY_SEARCH}`;
+        const res = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }] }]
+            })
+        });
         const data = await res.json();
-        if (histLayer) histMap.removeLayer(histLayer);
-        histLayer = L.geoJSON(data, {
-            style: { color: '#00e676', weight: 1, fillColor: '#0a1a0a', fillOpacity: 0.6 },
-            onEachFeature: (feature, layer) => {
-                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || '';
-                if (name) {
-                    layer.bindPopup(`<div style="font-family:sans-serif;padding:4px"><b style="color:#000">${name}</b></div>`);
-                }
-                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.85, fillColor: '#00e676' }); });
-                layer.on('mouseout', function() { histLayer.resetStyle(this); });
-            }
-        }).addTo(histMap);
-    } catch(e) { console.error('Could not load borders for', y, e); }
-}
-
-function initHistMap() {
-    if (histMap) { setTimeout(() => histMap.invalidateSize(), 300); return; }
-    setTimeout(() => {
-        histMap = L.map('hist-map', { zoomControl: true }).setView([30, 10], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(histMap);
-        loadHistBorders(1900);
-    }, 400);
-}
+        if (data.error) throw new Error(data.error.message);
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных';
+        loading.style.display = 'none';
+        result.style.display = 'block';
+        resultText.innerHTML = mdToHtml(text);
+        result.scrollIntoView({ behavior: 'smooth' });
+    } catch(e) {
+        loading.style.display = 'none';
+        result.style.display = 'block';
+        resultText.innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
+    }
+};
 
 // ── MAP ──
 let historicalLayer = null;
@@ -673,11 +694,12 @@ window.loadYear = async (year) => {
             }),
             onEachFeature: (feature, layer) => {
                 const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || '';
-                if (name) {
-                    layer.bindPopup(`<div style="font-family:sans-serif;padding:6px;min-width:160px"><b style="font-size:14px">${name}</b><br><small style="color:#999">${snapped > 0 ? snapped + ' г.' : Math.abs(snapped) + ' г. до н.э.'}</small></div>`);
-                }
                 layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.85, fillColor: '#00e676' }); });
                 layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.6, fillColor: '#0a1a0a' }); });
+                layer.on('click', function(e) {
+                    if (!name) return;
+                    showCountryHistory(name, e.latlng);
+                });
             }
         }).addTo(map);
     } catch(e) {
@@ -685,6 +707,36 @@ window.loadYear = async (year) => {
     }
     loading.style.display = 'none';
 };
+
+
+// ── MAP COUNTRY HISTORY PANEL ──
+let mapPopup = null;
+
+async function showCountryHistory(countryName, latlng) {
+    if (mapPopup) { map.closePopup(mapPopup); }
+    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + countryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
+    mapPopup = L.popup({ maxWidth: 360 }).setLatLng(latlng).setContent(loadingHtml).openOn(map);
+    try {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_KEY_SEARCH;
+        const res = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }] }] })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const text = (data.candidates?.[0]?.content?.parts?.[0]?.text || 'Нет данных')
+            .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
+        const html = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px;max-width:340px">'
+            + '<div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div>'
+            + '<b style="font-size:15px;color:#111">' + countryName + '</b>'
+            + '<div style="margin-top:10px;font-size:13px;line-height:1.7;color:#333">' + text + '</div>'
+            + '<div style="margin-top:12px"><button onclick="window.setTab(\'sec-search\',\'nav-search\');" style="background:#00e676;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">Подробнее →</button></div>'
+            + '</div>';
+        mapPopup.setContent(html);
+    } catch(e) {
+        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + countryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + e.message + '</span></div>');
+    }
+}
 
 function stringToColor(str) {
     let hash = 0;
