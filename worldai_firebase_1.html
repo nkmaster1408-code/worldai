@@ -101,6 +101,12 @@
         .send-btn svg { fill: #000; width: 18px; height: 18px; }
         .input-hint { text-align: center; font-size: 11px; color: #333; margin-top: 8px; }
         #map { width: 100%; height: 100%; }
+        #hist-map { width: 100%; height: 100%; }
+        .hist-controls { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 1000; background: #111; border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.5); }
+        .hist-controls input[type=range] { width: 220px; accent-color: #00e676; }
+        .hist-year-display { font-family: 'Space Mono', monospace; color: #00e676; font-size: 22px; font-weight: 700; min-width: 60px; text-align: center; }
+        .hist-controls label { color: #666; font-size: 12px; }
+        #sec-hist { position: relative; }
         #sec-map { position: relative; }
         #year-input::-webkit-inner-spin-button { opacity: 1; }
         .mob-toggle { display: none; }
@@ -169,6 +175,7 @@
     <button class="new-chat-btn" onclick="newChat()">＋ Новый чат</button>
     <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>💬</span><span>ИИ Чат</span></div>
     <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>🌐</span><span>Карта мира</span></div>
+    <div class="nav-item" id="nav-hist" onclick="setTab('sec-hist','nav-hist')"><span>📅</span><span>История границ</span></div>
     <div class="divider"></div>
     <div class="history-label">История</div>
     <div class="history-list" id="history-list"></div>
@@ -351,6 +358,7 @@ window.setTab = (sectionId, navId) => {
     document.getElementById(sectionId).classList.add('active');
     document.getElementById(navId).classList.add('active');
     if (sectionId === 'sec-map') initMap();
+    if (sectionId === 'sec-hist') initHistMap();
 };
 
 // ── NEW CHAT ──
@@ -561,6 +569,51 @@ function mdToHtml(text) {
     h = h.replace(/\n\n/g, '</p><p>'); h = h.replace(/\n/g, '<br>');
     if (!h.startsWith('<')) h = '<p>' + h + '</p>';
     return h;
+}
+
+// ── HISTORY MAP ──
+let histMap = null;
+let histLayer = null;
+const YEARS = [1,200,400,600,800,1000,1100,1200,1279,1300,1400,1492,1500,1530,1600,1650,1700,1715,1783,1800,1815,1880,1900,1910,1920,1930,1938,1945,1960,1994,2000,2010,2019];
+
+function nearestYear(y) {
+    return YEARS.reduce((a, b) => Math.abs(b - y) < Math.abs(a - y) ? b : a);
+}
+
+window.updateYear = (val) => {
+    document.getElementById('year-display').textContent = val;
+    clearTimeout(window._yearTimer);
+    window._yearTimer = setTimeout(() => loadHistBorders(parseInt(val)), 400);
+};
+
+async function loadHistBorders(year) {
+    if (!histMap) return;
+    const y = nearestYear(year);
+    const url = `https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_${y}.geojson`;
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('no data');
+        const data = await res.json();
+        if (histLayer) histMap.removeLayer(histLayer);
+        histLayer = L.geoJSON(data, {
+            style: { color: '#00e676', weight: 1, fillColor: '#1a2a1a', fillOpacity: 0.5 },
+            onEachFeature: (feature, layer) => {
+                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || 'Unknown';
+                layer.bindPopup(`<div style="font-family:sans-serif;padding:4px"><b style="color:#000">${name}</b></div>`);
+                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.75, fillColor: '#00e676' }); });
+                layer.on('mouseout', function() { histLayer.resetStyle(this); });
+            }
+        }).addTo(histMap);
+    } catch(e) { console.error('Could not load borders for', y, e); }
+}
+
+function initHistMap() {
+    if (histMap) { setTimeout(() => histMap.invalidateSize(), 300); return; }
+    setTimeout(() => {
+        histMap = L.map('hist-map', { zoomControl: true }).setView([30, 10], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(histMap);
+        loadHistBorders(1900);
+    }, 400);
 }
 
 // ── MAP ──
