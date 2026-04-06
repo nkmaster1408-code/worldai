@@ -664,18 +664,20 @@ window.loadYear = async (year) => {
         if (!res.ok) throw new Error('Not found');
         const data = await res.json();
         historicalLayer = L.geoJSON(data, {
-            style: (feature) => ({
-                fillColor: stringToColor(feature.properties.NAME || feature.properties.name || 'x'),
-                fillOpacity: 0.55,
-                color: '#000',
-                weight: 0.8,
+            style: () => ({
+                fillColor: '#0a1a0a',
+                fillOpacity: 0.6,
+                color: '#00e676',
+                weight: 1,
                 opacity: 0.8
             }),
             onEachFeature: (feature, layer) => {
-                const name = feature.properties.NAME || feature.properties.name || 'Unknown';
-                layer.bindPopup(`<div style="font-family:sans-serif;padding:6px;min-width:160px"><b style="font-size:14px">${name}</b><br><small style="color:#999">${snapped > 0 ? snapped + ' г.' : Math.abs(snapped) + ' г. до н.э.'}</small></div>`);
-                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.8, weight: 1.5 }); });
-                layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.55, weight: 0.8 }); });
+                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || '';
+                if (name) {
+                    layer.bindPopup(`<div style="font-family:sans-serif;padding:6px;min-width:160px"><b style="font-size:14px">${name}</b><br><small style="color:#999">${snapped > 0 ? snapped + ' г.' : Math.abs(snapped) + ' г. до н.э.'}</small></div>`);
+                }
+                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.85, fillColor: '#00e676' }); });
+                layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.6, fillColor: '#0a1a0a' }); });
             }
         }).addTo(map);
     } catch(e) {
