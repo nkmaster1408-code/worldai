@@ -101,6 +101,8 @@
         .send-btn svg { fill: #000; width: 18px; height: 18px; }
         .input-hint { text-align: center; font-size: 11px; color: #333; margin-top: 8px; }
         #map { width: 100%; height: 100%; }
+        #sec-map { position: relative; }
+        #year-input::-webkit-inner-spin-button { opacity: 1; }
         .mob-toggle { display: none; }
         @media (max-width: 700px) {
             aside { position: fixed; left: -280px; top: 0; height: 100%; z-index: 500; transition: left .25s ease; box-shadow: 2px 0 20px rgba(0,0,0,.5); }
@@ -201,7 +203,17 @@
             </div>
         </div>
     </section>
-    <section id="sec-map" class="section">
+    <section id="sec-map" class="section" style="position:relative;">
+        <div id="map-controls" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:10px;background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:10px 18px;box-shadow:0 4px 20px rgba(0,0,0,.5);">
+            <button onclick="changeYear(-100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">‹</button>
+            <button onclick="changeYear(-10)" style="background:none;border:1px solid #333;color:#666;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:11px;">-10</button>
+            <input type="number" id="year-input" value="2000" min="-3000" max="2019"
+                style="background:#1a1a1a;border:1px solid #333;color:#00e676;border-radius:8px;padding:6px 12px;font-size:18px;font-family:'Space Mono',monospace;width:100px;text-align:center;outline:none;"
+                onchange="loadYear(parseInt(this.value))" onkeydown="if(event.key==='Enter')loadYear(parseInt(this.value))"/>
+            <button onclick="changeYear(10)" style="background:none;border:1px solid #333;color:#666;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:11px;">+10</button>
+            <button onclick="changeYear(100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">›</button>
+        </div>
+        <div id="map-loading" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 16px;color:#00e676;font-size:12px;font-family:'Space Mono',monospace;">Загрузка...</div>
         <div id="map"></div>
     </section>
 </main>
@@ -552,22 +564,76 @@ function mdToHtml(text) {
 }
 
 // ── MAP ──
+let historicalLayer = null;
+let currentYear = 2000;
+
 function initMap() {
     if (map) { setTimeout(() => map.invalidateSize(), 300); return; }
     setTimeout(() => {
-        map = L.map('map').setView([48, 68], 4);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-        map.on('click', async (e) => {
-            const { lat, lng } = e.latlng;
-            const popup = L.popup().setLatLng(e.latlng).setContent('<div style="color:#000;padding:4px">🔍 Загрузка...</div>').openOn(map);
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ru`);
-                const d = await res.json();
-                const name = d.address.city || d.address.town || d.address.village || d.address.county || d.address.country || 'Место';
-                popup.setContent(`<div style="font-family:sans-serif;min-width:180px;padding:4px"><b>${name}</b><br><small style="color:#999">📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}</small><br><div style="margin-top:8px"><a href="https://www.google.com/maps/search/${encodeURIComponent(name)}" target="_blank" style="background:#1a73e8;color:#fff;padding:4px 10px;border-radius:5px;text-decoration:none;font-size:11px">Google Maps</a></div></div>`);
-            } catch { popup.setContent(`<div style="color:#000;padding:4px">📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}</div>`); }
-        });
+        map = L.map('map', { zoomControl: true }).setView([20, 10], 2);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO'
+        }).addTo(map);
+        loadYear(2000);
     }, 400);
+}
+
+function getAvailableYear(year) {
+    const available = [-3000,-2000,-1500,-1000,-500,-323,-200,-100,1,400,600,700,800,900,1000,1100,1200,1279,1300,1400,1444,1492,1500,1530,1600,1650,1700,1715,1783,1800,1815,1880,1900,1914,1920,1930,1938,1945,1960,1994,2000,2010,2019];
+    let closest = available[0];
+    let minDiff = Math.abs(year - available[0]);
+    for (const y of available) {
+        const diff = Math.abs(year - y);
+        if (diff < minDiff) { minDiff = diff; closest = y; }
+    }
+    return closest;
+}
+
+window.changeYear = (delta) => {
+    currentYear = Math.max(-3000, Math.min(2019, currentYear + delta));
+    document.getElementById('year-input').value = currentYear;
+    loadYear(currentYear);
+};
+
+window.loadYear = async (year) => {
+    if (!map) return;
+    currentYear = Math.max(-3000, Math.min(2019, year || 2000));
+    const snapped = getAvailableYear(currentYear);
+    document.getElementById('year-input').value = currentYear;
+    const loading = document.getElementById('map-loading');
+    loading.style.display = 'block';
+    if (historicalLayer) { map.removeLayer(historicalLayer); historicalLayer = null; }
+    try {
+        const url = `https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_${snapped}.geojson`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Not found');
+        const data = await res.json();
+        historicalLayer = L.geoJSON(data, {
+            style: (feature) => ({
+                fillColor: stringToColor(feature.properties.NAME || feature.properties.name || 'x'),
+                fillOpacity: 0.55,
+                color: '#000',
+                weight: 0.8,
+                opacity: 0.8
+            }),
+            onEachFeature: (feature, layer) => {
+                const name = feature.properties.NAME || feature.properties.name || 'Unknown';
+                layer.bindPopup(`<div style="font-family:sans-serif;padding:6px;min-width:160px"><b style="font-size:14px">${name}</b><br><small style="color:#999">${snapped > 0 ? snapped + ' г.' : Math.abs(snapped) + ' г. до н.э.'}</small></div>`);
+                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.8, weight: 1.5 }); });
+                layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.55, weight: 0.8 }); });
+            }
+        }).addTo(map);
+    } catch(e) {
+        console.error(e);
+    }
+    loading.style.display = 'none';
+};
+
+function stringToColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4','#8bc34a','#ff5722','#607d8b','#795548','#ff9800','#673ab7','#03a9f4','#4caf50','#ffc107','#009688'];
+    return colors[Math.abs(hash) % colors.length];
 }
 </script>
 </body>
