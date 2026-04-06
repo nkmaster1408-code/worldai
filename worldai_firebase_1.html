@@ -208,7 +208,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut as fbSignOut }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, orderBy, query }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -238,13 +238,22 @@ let map = null;
 
 // ── AUTH ──
 window.signInWithGoogle = async () => {
-    try { await signInWithPopup(auth, provider); }
+    try {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            await signInWithRedirect(auth, provider);
+        } else {
+            await signInWithPopup(auth, provider);
+        }
+    }
     catch(e) { alert('Ошибка входа: ' + e.message); }
 };
 window.signOut = async () => {
     if (!confirm('Выйти из аккаунта?')) return;
     await fbSignOut(auth);
 };
+getRedirectResult(auth).catch(() => {});
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
