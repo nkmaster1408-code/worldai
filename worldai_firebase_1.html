@@ -760,7 +760,7 @@ function addCountryLabels(geojson, map) {
             const marker = L.marker(center, {
                 icon: L.divIcon({
                     className: '',
-                    html: '<div class="clabel">' + name + '</div>',
+                    html: '<div class="clabel">' + String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>',
                     iconSize: [0, 0],
                     iconAnchor: [0, 0]
                 }),
@@ -778,7 +778,8 @@ let mapPopup = null;
 
 async function showCountryHistory(countryName, latlng) {
     if (mapPopup) { map.closePopup(mapPopup); }
-    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + countryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
+    const safeCountryName = String(countryName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + safeCountryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
     mapPopup = L.popup({ maxWidth: 360 }).setLatLng(latlng).setContent(loadingHtml).openOn(map);
     try {
         const res = await fetch('https://gemini-proxy.nkmaster1408.workers.dev', {
@@ -795,13 +796,13 @@ async function showCountryHistory(countryName, latlng) {
             .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
         const html = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px;max-width:340px">'
             + '<div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div>'
-            + '<b style="font-size:15px;color:#111">' + countryName + '</b>'
+            + '<b style="font-size:15px;color:#111">' + safeCountryName + '</b>'
             + '<div style="margin-top:10px;font-size:13px;line-height:1.7;color:#333">' + text + '</div>'
             + '<div style="margin-top:12px"><button onclick="window.setTab(\'sec-search\',\'nav-search\');" style="background:#00e676;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">Подробнее →</button></div>'
             + '</div>';
         mapPopup.setContent(html);
     } catch(e) {
-        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + countryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + e.message + '</span></div>');
+        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + safeCountryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + escHtml(e.message) + '</span></div>');
     }
 }
 
