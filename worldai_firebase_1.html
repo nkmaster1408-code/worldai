@@ -101,10 +101,27 @@
         .send-btn svg { fill: #000; width: 18px; height: 18px; }
         .input-hint { text-align: center; font-size: 11px; color: #333; margin-top: 8px; }
         #map { width: 100%; height: 100%; }
-        @media (max-width: 600px) { :root { --sidebar-w: 56px; } .logo span, .new-chat-btn span, .history-label, .history-list, .clear-btn, .nav-item span, .user-name, .logout-btn { display: none; } .logo { font-size: 11px; } .new-chat-btn { font-size: 18px; padding: 10px; } .nav-item { justify-content: center; } }
+        .mob-toggle { display: none; }
+        @media (max-width: 700px) {
+            aside { position: fixed; left: -280px; top: 0; height: 100%; z-index: 500; transition: left .25s ease; box-shadow: 2px 0 20px rgba(0,0,0,.5); }
+            aside.open { left: 0; }
+            .mob-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 499; }
+            aside.open ~ .mob-overlay { display: block; }
+            main { width: 100%; }
+            .mob-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 600; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; width: 38px; height: 38px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
+            .messages-area { padding: 60px 12px 20px; }
+            .input-area { padding: 10px 12px 16px; }
+            .chips { flex-direction: column; align-items: center; }
+            .chip { width: 90%; text-align: center; }
+            .welcome { margin: 40px auto 0; padding: 0 8px; }
+            .welcome h1 { font-size: 24px; }
+        }
     </style>
 </head>
 <body>
+
+<div class="mob-toggle" onclick="toggleSidebar()">☰</div>
+<div class="mob-overlay" onclick="toggleSidebar()"></div>
 
 <div id="login-screen">
     <svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
@@ -400,6 +417,11 @@ async function sendMessage() {
 window.sendMessage = sendMessage;
 window.handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 window.autoResize = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; };
+
+// ── SIDEBAR TOGGLE ──
+window.toggleSidebar = () => {
+    document.querySelector('aside').classList.toggle('open');
+};
 
 // ── THEME ──
 window.toggleTheme = () => {
