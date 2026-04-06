@@ -247,10 +247,10 @@ window.signInWithGoogle = async () => {
             await signInWithPopup(auth, provider);
         }
     }
-    catch(e) { alert('Ошибка входа: ' + e.message); }
+    catch(e) { alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0432\u0445\u043e\u0434\u0430: ' + e.message); }
 };
 window.signOut = async () => {
-    if (!confirm('Выйти из аккаунта?')) return;
+    if (!confirm('\u0412\u044b\u0439\u0442\u0438 \u0438\u0437 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u0430?')) return;
     await fbSignOut(auth);
 };
 getRedirectResult(auth).catch(() => {});
@@ -298,11 +298,11 @@ async function saveProfile(name, interests) {
 }
 
 function askForProfile() {
-    const name = prompt('Как тебя зовут?');
+    const name = prompt('\u041a\u0430\u043a \u0442\u0435\u0431\u044f \u0437\u043e\u0432\u0443\u0442?');
     if (!name || !name.trim()) return;
-    const interests = prompt('Чем интересуешься? (например: программирование, история, музыка)');
+    const interests = prompt('\u0427\u0435\u043c \u0438\u043d\u0442\u0435\u0440\u0435\u0441\u0443\u0435\u0448\u044c\u0441\u044f? (\u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435, \u0438\u0441\u0442\u043e\u0440\u0438\u044f, \u043c\u0443\u0437\u044b\u043a\u0430)');
     saveProfile(name.trim(), (interests || '').trim());
-    appendMessage('ai', 'Приятно познакомиться, ' + name.trim() + '! Теперь я буду помнить тебя. Чем могу помочь?');
+    appendMessage('ai', '\u041f\u0440\u0438\u044f\u0442\u043d\u043e \u043f\u043e\u0437\u043d\u0430\u043a\u043e\u043c\u0438\u0442\u044c\u0441\u044f, ' + name.trim() + '! \u0422\u0435\u043f\u0435\u0440\u044c \u044f \u0431\u0443\u0434\u0443 \u043f\u043e\u043c\u043d\u0438\u0442\u044c \u0442\u0435\u0431\u044f. \u0427\u0435\u043c \u043c\u043e\u0433\u0443 \u043f\u043e\u043c\u043e\u0447\u044c?');
 }
 
 // ── FIRESTORE ──
@@ -391,7 +391,7 @@ function loadSession(id) {
     setTab('sec-ai', 'nav-ai'); renderHistory(); msgs.scrollTop = msgs.scrollHeight;
 }
 window.clearHistory = async () => {
-    if (!confirm('Удалить всю историю чатов?')) return;
+    if (!confirm('\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0432\u0441\u044e \u0438\u0441\u0442\u043e\u0440\u0438\u044e \u0447\u0430\u0442\u043e\u0432?')) return;
     for (const s of sessions) await deleteSess(s.id);
     sessions = []; renderHistory(); newChat();
 };
@@ -454,7 +454,7 @@ async function sendMessage() {
         const data = await res.json();
         if (data.error) throw new Error(data.error.message);
         const reply = data.choices?.[0]?.message?.content;
-        if (!reply) throw new Error('Пустой ответ');
+        if (!reply) throw new Error('\u041f\u0443\u0441\u0442\u043e\u0439 \u043e\u0442\u0432\u0435\u0442');
         removeTyping(); appendMessage('ai', reply);
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
@@ -510,7 +510,7 @@ window.speakMsg = (id, btn) => {
 window.renameSession = async (id) => {
     const s = sessions.find(x => x.id === id);
     if (!s) return;
-    const newTitle = prompt('Новое название:', s.title);
+    const newTitle = prompt('\u041d\u043e\u0432\u043e\u0435 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435:', s.title);
     if (!newTitle || !newTitle.trim()) return;
     s.title = newTitle.trim().slice(0, 45);
     await saveSess(s);
@@ -529,7 +529,7 @@ window.editProfile = () => {
 
 // ── DELETE ONE SESSION ──
 window.deleteOneSession = async (id) => {
-    if (!confirm('Удалить этот чат?')) return;
+    if (!confirm('\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u044d\u0442\u043e\u0442 \u0447\u0430\u0442?')) return;
     await deleteSess(id);
     sessions = sessions.filter(s => s.id !== id);
     if (currentSessionId === id) newChat();
