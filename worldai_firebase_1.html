@@ -402,11 +402,11 @@ const db = getFirestore(firebaseApp);
 const provider = new GoogleAuthProvider();
 const GROQ_WORKER = 'https://empty-sea-c1b4.nkmaster1408.workers.dev';
 
-// ── COUNTRY TRANSLATION DICT ──
+// ── COUNTRY TRANSLATION + CODES DICT ──
 const countryTranslations = {
-    'Россия': 'Russia', 'РФ': 'Russia',
+    'Россия': 'Russian Federation', 'РФ': 'Russian Federation',
     'Казахстан': 'Kazakhstan', 'КЗ': 'Kazakhstan',
-    'Япония': 'Japan', 'Корея': 'South Korea', 'Северная Корея': 'North Korea',
+    'Япония': 'Japan', 'Корея': 'South Korea', 'Северная Корея': 'North Korea', 'ДПР Корея': 'North Korea',
     'Китай': 'China', 'США': 'United States', 'Турция': 'Turkey',
     'Германия': 'Germany', 'Франция': 'France', 'Великобритания': 'United Kingdom',
     'Египет': 'Egypt', 'ОАЭ': 'United Arab Emirates', 'Австралия': 'Australia',
@@ -425,8 +425,28 @@ const countryTranslations = {
     'Пакистан': 'Pakistan', 'Бангладеш': 'Bangladesh', 'Шри-Ланка': 'Sri Lanka',
     'Таиланд': 'Thailand', 'Вьетнам': 'Vietnam', 'Лаос': 'Laos',
     'Камбоджа': 'Cambodia', 'Малайзия': 'Malaysia', 'Сингапур': 'Singapore',
-    'Филиппины': 'Philippines', 'Индонезия': 'Indonesia', 'ДПР Корея': 'North Korea'
+    'Филиппины': 'Philippines', 'Индонезия': 'Indonesia',
+    'Англия': 'United Kingdom', 'Шотландия': 'United Kingdom', 'Уэльс': 'United Kingdom'
 };
+
+const countryCodes = {
+    'RU': 'Russian Federation', 'KZ': 'Kazakhstan', 'JP': 'Japan', 'CN': 'China',
+    'US': 'United States', 'TR': 'Turkey', 'DE': 'Germany', 'FR': 'France',
+    'GB': 'United Kingdom', 'EG': 'Egypt', 'AE': 'United Arab Emirates', 'AU': 'Australia',
+    'IN': 'India', 'BR': 'Brazil', 'MX': 'Mexico', 'MN': 'Mongolia',
+    'GR': 'Greece', 'IT': 'Italy', 'ES': 'Spain', 'PT': 'Portugal',
+    'SE': 'Sweden', 'NO': 'Norway', 'FI': 'Finland', 'PL': 'Poland',
+    'CZ': 'Czech Republic', 'HU': 'Hungary', 'RO': 'Romania', 'BG': 'Bulgaria',
+    'RS': 'Serbia', 'UA': 'Ukraine', 'BY': 'Belarus', 'MD': 'Moldova',
+    'GE': 'Georgia', 'AM': 'Armenia', 'AZ': 'Azerbaijan', 'UZ': 'Uzbekistan',
+    'TM': 'Turkmenistan', 'KG': 'Kyrgyzstan', 'TJ': 'Tajikistan', 'AF': 'Afghanistan',
+    'IR': 'Iran', 'IQ': 'Iraq', 'SA': 'Saudi Arabia', 'IL': 'Israel',
+    'JO': 'Jordan', 'LB': 'Lebanon', 'SY': 'Syria', 'PK': 'Pakistan',
+    'BD': 'Bangladesh', 'LK': 'Sri Lanka', 'TH': 'Thailand', 'VN': 'Vietnam',
+    'LA': 'Laos', 'KH': 'Cambodia', 'MY': 'Malaysia', 'SG': 'Singapore',
+    'PH': 'Philippines', 'ID': 'Indonesia', 'KP': 'North Korea', 'SK': 'South Korea'
+};
+
 
 let currentUser = null;
 let chatHistory = [];
@@ -759,12 +779,39 @@ async function fetchCountryStats(countryName) {
     try {
         // Translate Russian name to English if needed
         let searchName = countryTranslations[countryName] || countryName;
+        
         // REST Countries API — поиск по имени
-        const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchName)}?fullText=false`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data[0] || null;
-    } catch(e) { return null; }
+        try {
+            const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchName)}?fullText=true`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data?.[0]) return data[0];
+            }
+        } catch(e) {}
+        
+        // Fallback: try without fullText
+        try {
+            const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchName)}?fullText=false`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data?.[0]) return data[0];
+            }
+        } catch(e) {}
+        
+        // Fallback: try by code if it's a 2-letter code
+        if (searchName.length === 2) {
+            const res = await fetch(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(searchName)}`);
+            if (res.ok) {
+                const data = await res.json();
+                return data[0] || null;
+            }
+        }
+        
+        return null;
+    } catch(e) { 
+        console.error('Country fetch error:', e);
+        return null; 
+    }
 }
 
 async function fetchWeather(lat, lon) {
