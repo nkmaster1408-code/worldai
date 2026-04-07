@@ -58,6 +58,26 @@
         .history-item.active-hist .hist-dot { background: var(--green); }
         .clear-btn { margin-top: 10px; background: none; border: 1px solid #333; color: #555; border-radius: 6px; padding: 8px; font-size: 11px; cursor: pointer; width: 100%; transition: .15s; font-family: 'Manrope', sans-serif; }
         .clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+        /* ── NEW FEATURES CSS ── */
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+        .stat-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:14px 16px; transition:.2s; }
+        .stat-card:hover { border-color:#3a3a3a; }
+        .stat-card .stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-family:'Space Mono',monospace; }
+        .stat-card .stat-value { font-size:18px; font-weight:800; color:var(--text); line-height:1.2; }
+        .stat-card .stat-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+        .weather-card { background:linear-gradient(135deg,#0a2a1a,#0a1a2a); border:1px solid #1a3a2a; border-radius:12px; padding:16px; display:flex; align-items:center; gap:16px; margin-bottom:12px; }
+        .weather-icon { font-size:36px; }
+        .weather-temp { font-family:'Space Mono',monospace; font-size:28px; color:var(--green); font-weight:700; }
+        .weather-desc { font-size:13px; color:#aaa; margin-top:2px; }
+        .quiz-option { background:var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:13px 18px; cursor:pointer; font-size:14px; color:var(--text); transition:.2s; text-align:left; font-family:'Manrope',sans-serif; width:100%; }
+        .quiz-option:hover:not(:disabled) { border-color:#00e676; color:var(--green); }
+        .quiz-option.correct { border-color:#00e676; background:#0a2a0a; color:#00e676; }
+        .quiz-option.wrong { border-color:#ff4444; background:#2a0a0a; color:#ff4444; }
+        .compare-col { flex:1; min-width:200px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:16px; }
+        .compare-col-title { font-family:'Space Mono',monospace; font-size:12px; color:var(--green); letter-spacing:2px; margin-bottom:12px; }
+        .compare-stat { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+        .compare-stat:last-child { border-bottom:none; }
+        .flag-big { font-size:36px; margin-bottom:8px; display:block; }
 
         main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         .section { display: none; flex: 1; flex-direction: column; overflow: hidden; }
@@ -186,6 +206,8 @@
     <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>💬</span><span>ИИ Чат</span></div>
     <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>🌐</span><span>Карта мира</span></div>
     <div class="nav-item" id="nav-search" onclick="setTab('sec-search','nav-search')"><span>🔍</span><span>Поиск стран</span></div>
+    <div class="nav-item" id="nav-compare" onclick="setTab('sec-compare','nav-compare')"><span>⚖️</span><span>Сравнение стран</span></div>
+    <div class="nav-item" id="nav-quiz" onclick="setTab('sec-quiz','nav-quiz')"><span>🧠</span><span>Квиз</span></div>
     <div class="divider"></div>
     <div class="history-label">История</div>
     <div class="history-list" id="history-list"></div>
@@ -255,6 +277,10 @@
             </div>
             <div id="search-result" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;">
                 <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">◆ WORLDAI</div>
+                <div id="search-stats-area" style="margin-bottom:16px;display:none;">
+                    <div id="weather-widget"></div>
+                    <div class="stats-grid" id="country-stats-grid"></div>
+                </div>
                 <div id="search-result-text" style="font-size:15px;line-height:1.85;color:var(--text);"></div>
             </div>
             <div id="search-loading" style="display:none;text-align:center;padding:40px;color:var(--muted);">
@@ -267,7 +293,89 @@
             </div>
         </div>
     </section>
-</main>
+
+    <!-- ── COMPARE SECTION ── -->
+    <section id="sec-compare" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+        <div style="width:100%;max-width:800px;">
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">⚖️ СРАВНЕНИЕ СТРАН</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Сравни две страны по истории, культуре и статистике</p>
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+                <input id="compare-a" type="text" placeholder="Первая страна..." value="Казахстан"
+                    style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"/>
+                <div style="display:flex;align-items:center;color:var(--muted);font-size:20px;">VS</div>
+                <input id="compare-b" type="text" placeholder="Вторая страна..." value="Россия"
+                    style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"/>
+                <button onclick="compareCountries()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Сравнить</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;">
+                <span onclick="setCompare('Казахстан','Монголия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇰🇿 vs 🇲🇳</span>
+                <span onclick="setCompare('США','Китай')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇺🇸 vs 🇨🇳</span>
+                <span onclick="setCompare('Греция','Рим')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🏛️ Греция vs Рим</span>
+                <span onclick="setCompare('Япония','Корея')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇯🇵 vs 🇰🇷</span>
+                <span onclick="setCompare('Германия','Франция')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇩🇪 vs 🇫🇷</span>
+            </div>
+            <div id="compare-loading" style="display:none;text-align:center;padding:40px;color:var(--muted);">
+                <div style="display:inline-flex;gap:6px;align-items:center;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
+                    <span style="margin-left:10px;font-size:14px;">Анализирую...</span>
+                </div>
+            </div>
+            <div id="compare-stats-row" style="display:none;gap:16px;margin-bottom:20px;"></div>
+            <div id="compare-result" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;">
+                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">◆ WORLDAI АНАЛИЗ</div>
+                <div id="compare-result-text" style="font-size:15px;line-height:1.85;color:var(--text);"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── QUIZ SECTION ── -->
+    <section id="sec-quiz" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+        <div style="width:100%;max-width:700px;">
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🧠 ИСТОРИЧЕСКИЙ КВИЗ</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Проверь свои знания истории мира</p>
+            <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+                <select id="quiz-topic" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;">
+                    <option value="мировая история">🌍 Мировая история</option>
+                    <option value="история Казахстана">🇰🇿 История Казахстана</option>
+                    <option value="древний мир">🏛️ Древний мир</option>
+                    <option value="Вторая мировая война">⚔️ Вторая мировая война</option>
+                    <option value="география и страны">🗺️ География стран</option>
+                    <option value="известные личности истории">👑 Великие личности</option>
+                </select>
+                <button onclick="startQuiz()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;">Новый квиз</button>
+            </div>
+            <div id="quiz-score-bar" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:16px;display:none;align-items:center;justify-content:space-between;">
+                <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);">СЧЁТ</span>
+                <span id="quiz-score-text" style="font-family:'Space Mono',monospace;font-size:18px;color:var(--green);font-weight:700;">0 / 0</span>
+                <span id="quiz-streak" style="font-size:13px;color:#aaa;"></span>
+            </div>
+            <div id="quiz-loading" style="display:none;text-align:center;padding:40px;color:var(--muted);">
+                <div style="display:inline-flex;gap:6px;align-items:center;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
+                    <span style="margin-left:10px;font-size:14px;">Генерирую вопрос...</span>
+                </div>
+            </div>
+            <div id="quiz-card" style="display:none;">
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;">
+                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:16px;">◆ ВОПРОС <span id="quiz-q-num">1</span></div>
+                    <div id="quiz-question" style="font-size:17px;line-height:1.65;color:var(--text);font-weight:600;margin-bottom:20px;"></div>
+                    <div id="quiz-options" style="display:flex;flex-direction:column;gap:10px;"></div>
+                </div>
+                <div id="quiz-explanation" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;">
+                    <div id="quiz-exp-text" style="font-size:14px;line-height:1.7;color:var(--text);"></div>
+                </div>
+                <button id="quiz-next-btn" onclick="startQuiz()" style="display:none;background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 24px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;width:100%;">Следующий вопрос →</button>
+            </div>
+            <div id="quiz-start-hint" style="text-align:center;padding:60px 20px;color:var(--muted);">
+                <div style="font-size:48px;margin-bottom:16px;">🧠</div>
+                <div style="font-size:15px;">Выбери тему и нажми «Новый квиз»</div>
+            </div>
+        </div>
+    </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
@@ -619,8 +727,250 @@ function mdToHtml(text) {
     return h;
 }
 
-// ── COUNTRY SEARCH ──
-const GROQ_WORKER = 'https://empty-sea-c1b4.nkmaster1408.workers.dev';
+// ── COUNTRY STATS + WEATHER ──
+async function fetchCountryStats(countryName) {
+    try {
+        // REST Countries API — поиск по имени
+        const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=false`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data[0] || null;
+    } catch(e) { return null; }
+}
+
+async function fetchWeather(lat, lon) {
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch(e) { return null; }
+}
+
+function weatherCodeToEmoji(code) {
+    if (code === 0) return { emoji: '☀️', desc: 'Ясно' };
+    if (code <= 3) return { emoji: '⛅', desc: 'Облачно' };
+    if (code <= 48) return { emoji: '🌫️', desc: 'Туман' };
+    if (code <= 67) return { emoji: '🌧️', desc: 'Дождь' };
+    if (code <= 77) return { emoji: '❄️', desc: 'Снег' };
+    if (code <= 82) return { emoji: '🌦️', desc: 'Ливень' };
+    return { emoji: '⛈️', desc: 'Гроза' };
+}
+
+function formatPop(n) {
+    if (!n) return '—';
+    if (n >= 1e9) return (n/1e9).toFixed(1) + ' млрд';
+    if (n >= 1e6) return (n/1e6).toFixed(1) + ' млн';
+    if (n >= 1e3) return (n/1e3).toFixed(0) + ' тыс';
+    return n;
+}
+
+function formatArea(n) {
+    if (!n) return '—';
+    if (n >= 1e6) return (n/1e6).toFixed(2) + ' млн км²';
+    return n.toLocaleString('ru') + ' км²';
+}
+
+async function showCountryStats(countryName) {
+    const statsArea = document.getElementById('search-stats-area');
+    const weatherEl = document.getElementById('weather-widget');
+    const statsGrid = document.getElementById('country-stats-grid');
+    statsArea.style.display = 'block';
+    weatherEl.innerHTML = '';
+    statsGrid.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">⏳ Загружаю статистику...</div>';
+
+    const info = await fetchCountryStats(countryName);
+    if (!info) {
+        statsGrid.innerHTML = '';
+        statsArea.style.display = 'none';
+        return;
+    }
+
+    const pop = formatPop(info.population);
+    const area = formatArea(info.area);
+    const capital = info.capital?.[0] || '—';
+    const region = info.region || '—';
+    const flag = info.flag || '';
+    const currencies = Object.values(info.currencies || {}).map(c => c.name).join(', ') || '—';
+    const languages = Object.values(info.languages || {}).join(', ') || '—';
+    const gini = info.gini ? Object.values(info.gini)[0] + '%' : '—';
+    const lat = info.latlng?.[0];
+    const lon = info.latlng?.[1];
+
+    statsGrid.innerHTML = `
+        <div class="stat-card"><div class="stat-label">🏳️ Страна</div><div class="stat-value" style="font-size:28px;">${flag}</div><div class="stat-sub">${info.name?.common || countryName}</div></div>
+        <div class="stat-card"><div class="stat-label">👥 Население</div><div class="stat-value">${pop}</div><div class="stat-sub">человек</div></div>
+        <div class="stat-card"><div class="stat-label">📐 Площадь</div><div class="stat-value" style="font-size:15px;">${area}</div></div>
+        <div class="stat-card"><div class="stat-label">🏙️ Столица</div><div class="stat-value" style="font-size:15px;">${capital}</div></div>
+        <div class="stat-card"><div class="stat-label">🌍 Регион</div><div class="stat-value" style="font-size:14px;">${region}</div></div>
+        <div class="stat-card"><div class="stat-label">💰 Валюта</div><div class="stat-value" style="font-size:13px;">${currencies}</div></div>
+    `;
+
+    // Погода
+    if (lat !== undefined && lon !== undefined) {
+        const weather = await fetchWeather(lat, lon);
+        if (weather?.current) {
+            const t = Math.round(weather.current.temperature_2m);
+            const wind = Math.round(weather.current.wind_speed_10m);
+            const wInfo = weatherCodeToEmoji(weather.current.weather_code);
+            weatherEl.innerHTML = `
+                <div class="weather-card">
+                    <div class="weather-icon">${wInfo.emoji}</div>
+                    <div>
+                        <div class="weather-temp">${t}°C</div>
+                        <div class="weather-desc">${wInfo.desc} · Ветер ${wind} км/ч · ${capital}</div>
+                    </div>
+                </div>`;
+        }
+    }
+}
+
+// ── COMPARE COUNTRIES ──
+window.setCompare = (a, b) => {
+    document.getElementById('compare-a').value = a;
+    document.getElementById('compare-b').value = b;
+    compareCountries();
+};
+
+window.compareCountries = async () => {
+    const a = document.getElementById('compare-a').value.trim();
+    const b = document.getElementById('compare-b').value.trim();
+    if (!a || !b) return;
+    const loading = document.getElementById('compare-loading');
+    const result = document.getElementById('compare-result');
+    const statsRow = document.getElementById('compare-stats-row');
+    loading.style.display = 'block';
+    result.style.display = 'none';
+    statsRow.style.display = 'none';
+
+    // Параллельно загружаем данные обеих стран + ИИ анализ
+    const [infoA, infoB, aiRes] = await Promise.all([
+        fetchCountryStats(a),
+        fetchCountryStats(b),
+        fetch(GROQ_WORKER, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [{ role: 'user', content: `Сравни две страны/региона: "${a}" и "${b}". Используй разделы: ## История, ## Культура, ## Экономика, ## Политика, ## Интересные сходства и различия. Пиши на русском языке, подробно и аналитически. Используй **жирный** для ключевых фактов.` }],
+                max_tokens: 2048
+            })
+        })
+    ]);
+
+    loading.style.display = 'none';
+
+    // Отображаем карточки сравнения
+    if (infoA || infoB) {
+        const makeCol = (info, name) => {
+            if (!info) return `<div class="compare-col"><div class="compare-col-title">${name}</div><div style="color:var(--muted);font-size:13px;">Данные не найдены</div></div>`;
+            return `<div class="compare-col">
+                <span class="flag-big">${info.flag || '🌐'}</span>
+                <div class="compare-col-title">${info.name?.common || name}</div>
+                <div class="compare-stat"><span style="color:var(--muted)">👥 Население</span><span style="font-weight:700">${formatPop(info.population)}</span></div>
+                <div class="compare-stat"><span style="color:var(--muted)">📐 Площадь</span><span style="font-weight:700">${formatArea(info.area)}</span></div>
+                <div class="compare-stat"><span style="color:var(--muted)">🏙️ Столица</span><span style="font-weight:700">${info.capital?.[0] || '—'}</span></div>
+                <div class="compare-stat"><span style="color:var(--muted)">🌍 Регион</span><span style="font-weight:700">${info.region || '—'}</span></div>
+                <div class="compare-stat"><span style="color:var(--muted)">💰 Валюта</span><span style="font-weight:700">${Object.values(info.currencies||{}).map(c=>c.name).join(', ')||'—'}</span></div>
+            </div>`;
+        };
+        statsRow.style.display = 'flex';
+        statsRow.style.flexWrap = 'wrap';
+        statsRow.innerHTML = makeCol(infoA, a) + `<div style="display:flex;align-items:center;padding:0 8px;font-family:'Space Mono',monospace;color:var(--green);font-size:20px;font-weight:700;">VS</div>` + makeCol(infoB, b);
+    }
+
+    try {
+        const data = await aiRes.json();
+        if (data.error) throw new Error(data.error.message);
+        const text = data.choices?.[0]?.message?.content || '';
+        result.style.display = 'block';
+        document.getElementById('compare-result-text').innerHTML = mdToHtml(text);
+    } catch(e) {
+        result.style.display = 'block';
+        document.getElementById('compare-result-text').innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
+    }
+};
+
+// ── QUIZ ──
+let quizScore = 0;
+let quizTotal = 0;
+let quizStreak = 0;
+let quizAnswered = false;
+
+window.startQuiz = async () => {
+    const topic = document.getElementById('quiz-topic').value;
+    const loading = document.getElementById('quiz-loading');
+    const card = document.getElementById('quiz-card');
+    const startHint = document.getElementById('quiz-start-hint');
+    const scoreBar = document.getElementById('quiz-score-bar');
+    startHint.style.display = 'none';
+    loading.style.display = 'block';
+    card.style.display = 'none';
+    document.getElementById('quiz-next-btn').style.display = 'none';
+    document.getElementById('quiz-explanation').style.display = 'none';
+    quizAnswered = false;
+
+    try {
+        const res = await fetch(GROQ_WORKER, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [{ role: 'user', content: `Создай один вопрос для исторического квиза на тему: "${topic}". 
+Ответь ТОЛЬКО в формате JSON (без markdown, без \`\`\`):
+{
+  "question": "вопрос",
+  "options": ["А) ответ1", "Б) ответ2", "В) ответ3", "Г) ответ4"],
+  "correct": 0,
+  "explanation": "краткое объяснение правильного ответа"
+}
+correct — индекс правильного ответа (0-3). Вопрос должен быть интересным и нетривиальным. Пиши на русском языке.` }],
+                max_tokens: 512
+            })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const raw = data.choices?.[0]?.message?.content || '';
+        const clean = raw.replace(/```json|```/g,'').trim();
+        const q = JSON.parse(clean);
+
+        loading.style.display = 'none';
+        card.style.display = 'block';
+        quizTotal++;
+        document.getElementById('quiz-q-num').textContent = quizTotal;
+        document.getElementById('quiz-question').textContent = q.question;
+
+        const optionsEl = document.getElementById('quiz-options');
+        optionsEl.innerHTML = '';
+        q.options.forEach((opt, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-option';
+            btn.textContent = opt;
+            btn.onclick = () => {
+                if (quizAnswered) return;
+                quizAnswered = true;
+                const correct = q.correct;
+                const allBtns = optionsEl.querySelectorAll('.quiz-option');
+                allBtns.forEach(b => b.disabled = true);
+                allBtns[correct].classList.add('correct');
+                if (i !== correct) { btn.classList.add('wrong'); quizStreak = 0; }
+                else { quizScore++; quizStreak++; }
+                // Объяснение
+                const expEl = document.getElementById('quiz-explanation');
+                const expText = document.getElementById('quiz-exp-text');
+                expEl.style.display = 'block';
+                expText.innerHTML = (i === correct ? '✅ ' : '❌ ') + '<strong>' + (i === correct ? 'Правильно!' : 'Неверно!') + '</strong> ' + q.explanation;
+                // Счёт
+                scoreBar.style.display = 'flex';
+                document.getElementById('quiz-score-text').textContent = quizScore + ' / ' + quizTotal;
+                document.getElementById('quiz-streak').textContent = quizStreak > 1 ? '🔥 Серия: ' + quizStreak : '';
+                document.getElementById('quiz-next-btn').style.display = 'block';
+            };
+            optionsEl.appendChild(btn);
+        });
+    } catch(e) {
+        loading.style.display = 'none';
+        card.style.display = 'block';
+        document.getElementById('quiz-question').textContent = '❌ Ошибка: ' + e.message;
+    }
+};
 
 window.searchCountryName = (name) => {
     document.getElementById('country-input').value = name;
@@ -652,6 +1002,8 @@ window.searchCountry = async () => {
         result.style.display = 'block';
         resultText.innerHTML = mdToHtml(text);
         result.scrollIntoView({ behavior: 'smooth' });
+        // Загружаем статистику страны параллельно
+        showCountryStats(country);
     } catch(e) {
         loading.style.display = 'none';
         result.style.display = 'block';
