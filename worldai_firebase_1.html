@@ -402,6 +402,32 @@ const db = getFirestore(firebaseApp);
 const provider = new GoogleAuthProvider();
 const GROQ_WORKER = 'https://empty-sea-c1b4.nkmaster1408.workers.dev';
 
+// ── COUNTRY TRANSLATION DICT ──
+const countryTranslations = {
+    'Россия': 'Russia', 'РФ': 'Russia',
+    'Казахстан': 'Kazakhstan', 'КЗ': 'Kazakhstan',
+    'Япония': 'Japan', 'Корея': 'South Korea', 'Северная Корея': 'North Korea',
+    'Китай': 'China', 'США': 'United States', 'Турция': 'Turkey',
+    'Германия': 'Germany', 'Франция': 'France', 'Великобритания': 'United Kingdom',
+    'Египет': 'Egypt', 'ОАЭ': 'United Arab Emirates', 'Австралия': 'Australia',
+    'Индия': 'India', 'Бразилия': 'Brazil', 'Мексика': 'Mexico',
+    'Монголия': 'Mongolia', 'Греция': 'Greece', 'Рим': 'Italy',
+    'Испания': 'Spain', 'Италия': 'Italy', 'Португалия': 'Portugal',
+    'Швеция': 'Sweden', 'Норвегия': 'Norway', 'Финляндия': 'Finland',
+    'Польша': 'Poland', 'Чехия': 'Czech Republic', 'Венгрия': 'Hungary',
+    'Румыния': 'Romania', 'Болгария': 'Bulgaria', 'Сербия': 'Serbia',
+    'Украина': 'Ukraine', 'Беларусь': 'Belarus', 'Молдова': 'Moldova',
+    'Грузия': 'Georgia', 'Армения': 'Armenia', 'Азербайджан': 'Azerbaijan',
+    'Узбекистан': 'Uzbekistan', 'Туркменистан': 'Turkmenistan', 'Кыргызстан': 'Kyrgyzstan',
+    'Таджикистан': 'Tajikistan', 'Афганистан': 'Afghanistan', 'Иран': 'Iran',
+    'Ирак': 'Iraq', 'Саудовская Аравия': 'Saudi Arabia', 'Израиль': 'Israel',
+    'Иордания': 'Jordan', 'Ливан': 'Lebanon', 'Сирия': 'Syria',
+    'Пакистан': 'Pakistan', 'Бангладеш': 'Bangladesh', 'Шри-Ланка': 'Sri Lanka',
+    'Таиланд': 'Thailand', 'Вьетнам': 'Vietnam', 'Лаос': 'Laos',
+    'Камбоджа': 'Cambodia', 'Малайзия': 'Malaysia', 'Сингапур': 'Singapore',
+    'Филиппины': 'Philippines', 'Индонезия': 'Indonesia', 'ДПР Корея': 'North Korea'
+};
+
 let currentUser = null;
 let chatHistory = [];
 let sessions = [];
@@ -731,8 +757,10 @@ function mdToHtml(text) {
 // ── COUNTRY STATS + WEATHER ──
 async function fetchCountryStats(countryName) {
     try {
+        // Translate Russian name to English if needed
+        let searchName = countryTranslations[countryName] || countryName;
         // REST Countries API — поиск по имени
-        const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=false`);
+        const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(searchName)}?fullText=false`);
         if (!res.ok) return null;
         const data = await res.json();
         return data[0] || null;
