@@ -2,7 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
     <title>WorldAI</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -140,23 +143,77 @@
         #sec-search { background: var(--bg); }
         #year-input::-webkit-inner-spin-button { opacity: 1; }
         .mob-toggle { display: none; }
-        @media (max-width: 700px) {
+        @media (max-width: 900px) {
             aside { position: fixed; left: -280px; top: 0; height: 100%; z-index: 500; transition: left .25s ease; box-shadow: 2px 0 20px rgba(0,0,0,.5); }
             aside.open { left: 0; }
             .mob-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 499; }
             aside.open ~ .mob-overlay { display: block; }
             main { width: 100%; }
-            .mob-toggle { display: flex; position: fixed; top: 12px; left: 12px; z-index: 600; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; width: 38px; height: 38px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
-            .messages-area { padding: 60px 12px 100px; }
-            .input-area { padding: 10px 12px 16px; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); z-index: 100; }
+            .mob-toggle { display: flex; position: fixed; top: 16px; left: 12px; z-index: 600; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; width: 48px; height: 48px; align-items: center; justify-content: center; cursor: pointer; font-size: 24px; }
+            .messages-area { padding: 80px 16px 140px; }
+            .input-area { padding: 14px 12px 20px; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); z-index: 100; }
             .input-outer { max-width: 100%; }
-            .input-wrap { border-radius: 10px; }
-            #user-input { font-size: 16px; }
+            .input-wrap { border-radius: 12px; padding: 14px 16px; gap: 14px; }
+            #user-input { font-size: 16px; min-height: 44px; }
+            .send-btn { width: 44px; height: 44px; }
+            .send-btn svg { width: 20px; height: 20px; }
+            .input-hint { font-size: 12px; }
             .chips { flex-direction: column; align-items: center; }
-            .chip { width: 90%; text-align: center; }
-            .welcome { margin: 40px auto 0; padding: 0 8px; }
-            .welcome h1 { font-size: 24px; }
+            .chip { width: 90%; text-align: center; padding: 12px 16px; font-size: 15px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+            .welcome { margin: 60px auto 0; padding: 0 16px; }
+            .welcome h1 { font-size: 28px; }
+            .welcome p { font-size: 14px; }
+            /* Улучшение кнопок */
+            .google-btn { padding: 18px 32px; font-size: 16px; }
+            .new-chat-btn { padding: 14px 16px; font-size: 14px; min-height: 48px; }
+            .nav-item { padding: 14px 14px; font-size: 14px; min-height: 48px; }
+            .clear-btn { padding: 12px 14px; font-size: 12px; min-height: 44px; }
+            .theme-btn { padding: 12px 14px; font-size: 13px; min-height: 44px; }
+            /* Поиск стран */
+            #country-input { font-size: 16px; min-height: 48px; }
+            button[onclick*="searchCountry"], button[onclick*="compareCountries"], button[onclick*="startQuiz"] { min-height: 48px; font-size: 15px; padding: 14px 20px; }
+            #compare-a, #compare-b { font-size: 16px; min-height: 48px; }
+            /* Карточки */
+            .stat-card { padding: 18px; margin: 8px; min-height: 100px; }
+            .stat-card .stat-value { font-size: 20px; }
+            .compare-col { padding: 20px; min-width: 160px; }
+            /* Текст */
+            .ai-text { font-size: 16px; line-height: 1.8; }
+            .msg-user .bubble { font-size: 15px; max-width: 85%; }
+            /* Квиз */
+            .quiz-option { padding: 16px; font-size: 16px; min-height: 48px; margin: 8px 0; }
+            #quiz-next-btn { min-height: 48px; font-size: 15px; }
+            #quiz-topic { font-size: 16px; min-height: 48px; padding: 14px; }
         }
+
+        /* Очень маленькие экраны (портрет и очень узкие) */
+        @media (max-width: 500px) {
+            .mob-toggle { top: 12px; left: 12px; width: 44px; height: 44px; font-size: 20px; }
+            .messages-area { padding: 70px 12px 130px; }
+            .input-area { padding: 12px 8px 16px; }
+            .input-wrap { padding: 12px 12px; border-radius: 10px; }
+            .send-btn { width: 40px; height: 40px; }
+            .send-btn svg { width: 18px; height: 18px; }
+            #user-input { font-size: 16px; min-height: 40px; }
+            .welcome h1 { font-size: 24px; }
+            .welcome p { font-size: 13px; line-height: 1.6; }
+            .chip { width: 95%; padding: 10px 14px; font-size: 14px; min-height: 40px; }
+            .ai-text { font-size: 15px; line-height: 1.8; }
+            .ai-label { font-size: 9px; }
+            .msg-user .bubble { font-size: 14px; padding: 10px 14px; }
+            .copy-btn, .speak-btn { font-size: 10px; }
+            .stat-card { padding: 14px; margin: 6px; }
+            .stat-card .stat-value { font-size: 18px; }
+            .stat-card .stat-label { font-size: 9px; }
+            .compare-col { padding: 16px; }
+            .compare-col-title { font-size: 11px; }
+            .compare-stat { font-size: 12px; padding: 6px 0; }
+            .flag-big { font-size: 32px; margin-bottom: 6px; }
+            button[onclick*="searchCountry"], button[onclick*="compareCountries"], button[onclick*="startQuiz"] { min-height: 44px; font-size: 14px; padding: 12px 16px; }
+            #country-input, #compare-a, #compare-b, #quiz-topic { font-size: 16px; min-height: 44px; padding: 12px; }
+            .quiz-option { padding: 14px; font-size: 15px; min-height: 44px; margin: 6px 0; }
+        }
+    </style>
     </style>
 </head>
 <body>
