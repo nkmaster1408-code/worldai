@@ -13,7 +13,7 @@
 </head>
 <body>
 
-<div class="mob-toggle" onclick="toggleSidebar()">â˜°</div>
+<div class="mob-toggle" onclick="toggleSidebar()">☰</div>
 <div class="mob-overlay" onclick="toggleSidebar()"></div>
 
 <div id="login-screen">
@@ -38,12 +38,12 @@
       <line x1="62" y1="108" x2="90" y2="90" stroke="#00e676" stroke-width="1" opacity="0.4"/>
     </svg>
     <h1>WORLDAI</h1>
-    <p>Ð˜Ð˜-Ð¿Ð¾Ð¼Ð¾Ñ‰Ð½Ð¸Ðº Ñ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÐµÐ¹ Ð² Ð¾Ð±Ð»Ð°ÐºÐµ</p>
+    <p>ИИ-помощник с историей в облаке</p>
     <button class="google-btn" onclick="signInWithGoogle()">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-        Ð’Ð¾Ð¹Ñ‚Ð¸ Ñ‡ÐµÑ€ÐµÐ· Google
+        Войти через Google
     </button>
-    <span class="login-note">Ð˜ÑÑ‚Ð¾Ñ€Ð¸Ñ Ñ‡Ð°Ñ‚Ð¾Ð² ÑÐ¾Ñ…Ñ€Ð°Ð½ÑÐµÑ‚ÑÑ Ð² Ñ‚Ð²Ð¾Ñ‘Ð¼ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ðµ</span>
+    <span class="login-note">История чатов сохраняется в твоём аккаунте</span>
 </div>
 
 <aside>
@@ -51,20 +51,20 @@
     <div class="user-badge" id="user-badge" style="display:none">
         <img class="user-avatar" id="user-avatar" src="" alt="">
         <span class="user-name" id="user-name"></span>
-        <button class="logout-btn" onclick="signOut()">Ð’Ñ‹Ð¹Ñ‚Ð¸</button>
+        <button class="logout-btn" onclick="signOut()">Выйти</button>
     </div>
-    <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">ðŸŒ™ Ð¢Ñ‘Ð¼Ð½Ð°Ñ Ñ‚ÐµÐ¼Ð°</button>
-    <button class="new-chat-btn" onclick="newChat()">ï¼‹ ÐÐ¾Ð²Ñ‹Ð¹ Ñ‡Ð°Ñ‚</button>
-    <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>ðŸ’¬</span><span>Ð˜Ð˜ Ð§Ð°Ñ‚</span></div>
-    <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>ðŸŒ</span><span>ÐšÐ°Ñ€Ñ‚Ð° Ð¼Ð¸Ñ€Ð°</span></div>
-    <div class="nav-item" id="nav-search" onclick="setTab('sec-search','nav-search')"><span>ðŸ”</span><span>ÐŸÐ¾Ð¸ÑÐº ÑÑ‚Ñ€Ð°Ð½</span></div>
-    <div class="nav-item" id="nav-compare" onclick="setTab('sec-compare','nav-compare')"><span>âš–ï¸</span><span>Ð¡Ñ€Ð°Ð²Ð½ÐµÐ½Ð¸Ðµ ÑÑ‚Ñ€Ð°Ð½</span></div>
-    <div class="nav-item" id="nav-quiz" onclick="setTab('sec-quiz','nav-quiz')"><span>ðŸ§ </span><span>ÐšÐ²Ð¸Ð·</span></div>
+    <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Тёмная тема</button>
+    <button class="new-chat-btn" onclick="newChat()">＋ Новый чат</button>
+    <div class="nav-item active" id="nav-ai" onclick="setTab('sec-ai','nav-ai')"><span>💬</span><span>ИИ Чат</span></div>
+    <div class="nav-item" id="nav-map" onclick="setTab('sec-map','nav-map')"><span>🌐</span><span>Карта мира</span></div>
+    <div class="nav-item" id="nav-search" onclick="setTab('sec-search','nav-search')"><span>🔍</span><span>Поиск стран</span></div>
+    <div class="nav-item" id="nav-compare" onclick="setTab('sec-compare','nav-compare')"><span>⚖️</span><span>Сравнение стран</span></div>
+    <div class="nav-item" id="nav-quiz" onclick="setTab('sec-quiz','nav-quiz')"><span>🧠</span><span>Квиз</span></div>
     <div class="divider"></div>
-    <div class="history-label">Ð˜ÑÑ‚Ð¾Ñ€Ð¸Ñ</div>
+    <div class="history-label">История</div>
     <div class="history-list" id="history-list"></div>
-    <button class="clear-btn" onclick="editProfile()" style="margin-top:6px;border-color:#333">ðŸ‘¤ ÐœÐ¾Ð¹ Ð¿Ñ€Ð¾Ñ„Ð¸Ð»ÑŒ</button>
-    <button class="clear-btn" onclick="clearHistory()">ðŸ—‘ ÐžÑ‡Ð¸ÑÑ‚Ð¸Ñ‚ÑŒ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÑŽ</button>
+    <button class="clear-btn" onclick="editProfile()" style="margin-top:6px;border-color:#333">👤 Мой профиль</button>
+    <button class="clear-btn" onclick="clearHistory()">🗑 Очистить историю</button>
 </aside>
 
 <main>
@@ -72,71 +72,71 @@
         <div class="messages-area" id="messages">
             <div class="welcome" id="welcome-screen">
                 <h1>WORLDAI</h1>
-                <p>ÐÐ°ÑÑ‚Ð¾ÑÑ‰Ð¸Ð¹ Ð˜Ð˜ Ð¿Ñ€ÑÐ¼Ð¾ Ð² Ð±Ñ€Ð°ÑƒÐ·ÐµÑ€Ðµ.<br>Ð—Ð°Ð´Ð°Ð¹ Ð»ÑŽÐ±Ð¾Ð¹ Ð²Ð¾Ð¿Ñ€Ð¾Ñ â€” Ð¾Ñ‚ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ð¸ Ð´Ð¾ Ð½Ð°ÑƒÐºÐ¸.</p>
+                <p>Настоящий ИИ прямо в браузере.<br>Задай любой вопрос — от истории до науки.</p>
                 <div class="chips">
-                    <div class="chip" onclick="quickSend('Ð Ð°ÑÑÐºÐ°Ð¶Ð¸ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÑŽ ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½Ð°')">ðŸ“œ Ð˜ÑÑ‚Ð¾Ñ€Ð¸Ñ ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½Ð°</div>
-                    <div class="chip" onclick="quickSend('Ð§Ñ‚Ð¾ Ñ‚Ð°ÐºÐ¾Ðµ ÐºÐ²Ð°Ð½Ñ‚Ð¾Ð²Ð°Ñ Ñ„Ð¸Ð·Ð¸ÐºÐ° Ð¿Ñ€Ð¾ÑÑ‚Ñ‹Ð¼Ð¸ ÑÐ»Ð¾Ð²Ð°Ð¼Ð¸?')">âš›ï¸ ÐšÐ²Ð°Ð½Ñ‚Ð¾Ð²Ð°Ñ Ñ„Ð¸Ð·Ð¸ÐºÐ°</div>
-                    <div class="chip" onclick="quickSend('ÐÐ°Ð¿Ð¸ÑˆÐ¸ ÑÑÑÐµ Ð¿Ñ€Ð¾ Ð¡Ð¡Ð¡Ð ')">ðŸ‡·ðŸ‡º Ð­ÑÑÐµ Ð¿Ñ€Ð¾ Ð¡Ð¡Ð¡Ð </div>
-                    <div class="chip" onclick="quickSend('ÐšÐ°Ðº ÑÑ‚Ð°Ñ‚ÑŒ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ð¼Ð¸ÑÑ‚Ð¾Ð¼ Ñ Ð½ÑƒÐ»Ñ?')">ðŸ’» Ð¡Ñ‚Ð°Ñ‚ÑŒ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ð¼Ð¸ÑÑ‚Ð¾Ð¼</div>
-                    <div class="chip" onclick="quickSend('ÐŸÐ¾Ñ‡ÐµÐ¼Ñƒ Ð½ÐµÐ±Ð¾ Ð³Ð¾Ð»ÑƒÐ±Ð¾Ðµ?')">ðŸŒ¤ ÐŸÐ¾Ñ‡ÐµÐ¼Ñƒ Ð½ÐµÐ±Ð¾ Ð³Ð¾Ð»ÑƒÐ±Ð¾Ðµ?</div>
+                    <div class="chip" onclick="quickSend('Расскажи историю Казахстана')">📜 История Казахстана</div>
+                    <div class="chip" onclick="quickSend('Что такое квантовая физика простыми словами?')">⚛️ Квантовая физика</div>
+                    <div class="chip" onclick="quickSend('Напиши эссе про СССР')">🇷🇺 Эссе про СССР</div>
+                    <div class="chip" onclick="quickSend('Как стать программистом с нуля?')">💻 Стать программистом</div>
+                    <div class="chip" onclick="quickSend('Почему небо голубое?')">🌤 Почему небо голубое?</div>
                 </div>
             </div>
         </div>
         <div class="input-area">
             <div class="input-outer">
                 <div class="model-bar" id="model-bar">
-                    <span class="model-bar-label">ÐœÐžÐ”Ð•Ð›Ð¬:</span>
-                    <button class="model-btn active" id="mbtn-llama" onclick="selectModel('llama')"><span class="model-dot"></span><span>Llama 3.3</span><span class="model-provider">Groq Â· Ð‘ÐµÑÐ¿Ð»Ð°Ñ‚Ð½Ð¾</span></button>
+                    <span class="model-bar-label">МОДЕЛЬ:</span>
+                    <button class="model-btn active" id="mbtn-llama" onclick="selectModel('llama')"><span class="model-dot"></span><span>Llama 3.3</span><span class="model-provider">Groq · Бесплатно</span></button>
                     <button class="model-btn" id="mbtn-gpt4o-mini" onclick="selectModel('gpt4o-mini')"><span class="model-dot"></span><span>GPT-4o mini</span><span class="model-provider">OpenAI</span></button>
                     <button class="model-btn" id="mbtn-gpt4o" onclick="selectModel('gpt4o')"><span class="model-dot"></span><span>GPT-4o</span><span class="model-provider">OpenAI</span></button>
                     <button class="model-btn" id="mbtn-claude-haiku" onclick="selectModel('claude-haiku')"><span class="model-dot"></span><span>Claude Haiku</span><span class="model-provider">Anthropic</span></button>
                     <button class="model-btn" id="mbtn-claude-sonnet" onclick="selectModel('claude-sonnet')"><span class="model-dot"></span><span>Claude Sonnet</span><span class="model-provider">Anthropic</span></button>
                 </div>
                 <div class="input-wrap">
-                    <textarea id="user-input" rows="1" placeholder="Ð—Ð°Ð´Ð°Ð¹ Ð»ÑŽÐ±Ð¾Ð¹ Ð²Ð¾Ð¿Ñ€Ð¾Ñ..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+                    <textarea id="user-input" rows="1" placeholder="Задай любой вопрос..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
                     <button class="send-btn" id="send-btn" onclick="sendMessage()">
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
                 </div>
-                <div class="input-hint">Enter â€” Ð¾Ñ‚Ð¿Ñ€Ð°Ð²Ð¸Ñ‚ÑŒ &nbsp;Â·&nbsp; Shift+Enter â€” Ð½Ð¾Ð²Ð°Ñ ÑÑ‚Ñ€Ð¾ÐºÐ° &nbsp;Â·&nbsp; <span id="current-model-hint" style="color:#555">Llama 3.3 (Groq)</span></div>
+                <div class="input-hint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка &nbsp;·&nbsp; <span id="current-model-hint" style="color:#555">Llama 3.3 (Groq)</span></div>
             </div>
         </div>
     </section>
     <section id="sec-map" class="section" style="position:relative;">
         <div id="map-controls" style="position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:10px;background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:10px 18px;box-shadow:0 4px 20px rgba(0,0,0,.5);">
-            <button onclick="changeYear(-100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">â€¹</button>
+            <button onclick="changeYear(-100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">‹</button>
             <button onclick="changeYear(-10)" style="background:none;border:1px solid #333;color:#666;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:11px;">-10</button>
             <input type="number" id="year-input" value="2000" min="-3000" max="2019"
                 style="background:#1a1a1a;border:1px solid #333;color:#00e676;border-radius:8px;padding:6px 12px;font-size:18px;font-family:'Space Mono',monospace;width:100px;text-align:center;outline:none;"
                 onchange="loadYear(parseInt(this.value))" onkeydown="if(event.key==='Enter')loadYear(parseInt(this.value))"/>
             <button onclick="changeYear(10)" style="background:none;border:1px solid #333;color:#666;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:11px;">+10</button>
-            <button onclick="changeYear(100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">â€º</button>
+            <button onclick="changeYear(100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">›</button>
         </div>
-        <div id="map-loading" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 16px;color:#00e676;font-size:12px;font-family:'Space Mono',monospace;">Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ°...</div>
+        <div id="map-loading" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 16px;color:#00e676;font-size:12px;font-family:'Space Mono',monospace;">Загрузка...</div>
         <div id="map"></div>
     </section>
     <section id="sec-search" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
         <div style="width:100%;max-width:700px;">
-            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">ðŸ” ÐŸÐžÐ˜Ð¡Ðš Ð¡Ð¢Ð ÐÐ</h2>
-            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Ð’Ð²ÐµÐ´Ð¸ Ð½Ð°Ð·Ð²Ð°Ð½Ð¸Ðµ ÑÑ‚Ñ€Ð°Ð½Ñ‹ â€” Ð˜Ð˜ Ñ€Ð°ÑÑÐºÐ°Ð¶ÐµÑ‚ ÐµÑ‘ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÑŽ</p>
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🔍 ПОИСК СТРАН</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Введи название страны — ИИ расскажет её историю</p>
             <div style="display:flex;gap:10px;margin-bottom:28px;">
-                <input id="country-input" type="text" placeholder="ÐÐ°Ð¿Ñ€Ð¸Ð¼ÐµÑ€: ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½, Ð¯Ð¿Ð¾Ð½Ð¸Ñ, Ð•Ð³Ð¸Ð¿ÐµÑ‚..."
+                <input id="country-input" type="text" placeholder="Например: Казахстан, Япония, Египет..."
                     style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"
                     onkeydown="if(event.key==='Enter')searchCountry()"/>
-                <button onclick="searchCountry()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Ð˜ÑÐºÐ°Ñ‚ÑŒ</button>
+                <button onclick="searchCountry()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Искать</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:32px;" id="country-chips">
-                <span onclick="searchCountryName('ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡°ðŸ‡¿ ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½</span>
-                <span onclick="searchCountryName('Ð Ð¾ÑÑÐ¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡·ðŸ‡º Ð Ð¾ÑÑÐ¸Ñ</span>
-                <span onclick="searchCountryName('Ð¯Ð¿Ð¾Ð½Ð¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡¯ðŸ‡µ Ð¯Ð¿Ð¾Ð½Ð¸Ñ</span>
-                <span onclick="searchCountryName('Ð•Ð³Ð¸Ð¿ÐµÑ‚')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡ªðŸ‡¬ Ð•Ð³Ð¸Ð¿ÐµÑ‚</span>
-                <span onclick="searchCountryName('Ð¡Ð¨Ð')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡ºðŸ‡¸ Ð¡Ð¨Ð</span>
-                <span onclick="searchCountryName('ÐšÐ¸Ñ‚Ð°Ð¹')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡¨ðŸ‡³ ÐšÐ¸Ñ‚Ð°Ð¹</span>
-                <span onclick="searchCountryName('Ð¢ÑƒÑ€Ñ†Ð¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡¹ðŸ‡· Ð¢ÑƒÑ€Ñ†Ð¸Ñ</span>
-                <span onclick="searchCountryName('Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">ðŸ‡©ðŸ‡ª Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ</span>
+                <span onclick="searchCountryName('Казахстан')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇰🇿 Казахстан</span>
+                <span onclick="searchCountryName('Россия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇷🇺 Россия</span>
+                <span onclick="searchCountryName('Япония')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇯🇵 Япония</span>
+                <span onclick="searchCountryName('Египет')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇪🇬 Египет</span>
+                <span onclick="searchCountryName('США')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇺🇸 США</span>
+                <span onclick="searchCountryName('Китай')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇨🇳 Китай</span>
+                <span onclick="searchCountryName('Турция')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇹🇷 Турция</span>
+                <span onclick="searchCountryName('Германия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;color:#aaa;cursor:pointer;">🇩🇪 Германия</span>
             </div>
             <div id="search-result" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;">
-                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">â—† WORLDAI</div>
+                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">◆ WORLDAI</div>
                 <div id="search-stats-area" style="margin-bottom:16px;display:none;">
                     <div id="weather-widget"></div>
                     <div class="stats-grid" id="country-stats-grid"></div>
@@ -148,66 +148,66 @@
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
-                    <span style="margin-left:10px;font-size:14px;">Ð˜Ð·ÑƒÑ‡Ð°ÑŽ Ð¸ÑÑ‚Ð¾Ñ€Ð¸ÑŽ...</span>
+                    <span style="margin-left:10px;font-size:14px;">Изучаю историю...</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- â”€â”€ COMPARE SECTION â”€â”€ -->
+    <!-- ── COMPARE SECTION ── -->
     <section id="sec-compare" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
         <div style="width:100%;max-width:800px;">
-            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">âš–ï¸ Ð¡Ð ÐÐ’ÐÐ•ÐÐ˜Ð• Ð¡Ð¢Ð ÐÐ</h2>
-            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Ð¡Ñ€Ð°Ð²Ð½Ð¸ Ð´Ð²Ðµ ÑÑ‚Ñ€Ð°Ð½Ñ‹ Ð¿Ð¾ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ð¸, ÐºÑƒÐ»ÑŒÑ‚ÑƒÑ€Ðµ Ð¸ ÑÑ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐµ</p>
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">⚖️ СРАВНЕНИЕ СТРАН</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Сравни две страны по истории, культуре и статистике</p>
             <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-                <input id="compare-a" type="text" placeholder="ÐŸÐµÑ€Ð²Ð°Ñ ÑÑ‚Ñ€Ð°Ð½Ð°..." value="ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½"
+                <input id="compare-a" type="text" placeholder="Первая страна..." value="Казахстан"
                     style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"/>
                 <div style="display:flex;align-items:center;color:var(--muted);font-size:20px;">VS</div>
-                <input id="compare-b" type="text" placeholder="Ð’Ñ‚Ð¾Ñ€Ð°Ñ ÑÑ‚Ñ€Ð°Ð½Ð°..." value="Ð Ð¾ÑÑÐ¸Ñ"
+                <input id="compare-b" type="text" placeholder="Вторая страна..." value="Россия"
                     style="flex:1;min-width:140px;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:15px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;"/>
-                <button onclick="compareCountries()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Ð¡Ñ€Ð°Ð²Ð½Ð¸Ñ‚ÑŒ</button>
+                <button onclick="compareCountries()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;white-space:nowrap;">Сравнить</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;">
-                <span onclick="setCompare('ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½','ÐœÐ¾Ð½Ð³Ð¾Ð»Ð¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">ðŸ‡°ðŸ‡¿ vs ðŸ‡²ðŸ‡³</span>
-                <span onclick="setCompare('Ð¡Ð¨Ð','ÐšÐ¸Ñ‚Ð°Ð¹')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">ðŸ‡ºðŸ‡¸ vs ðŸ‡¨ðŸ‡³</span>
-                <span onclick="setCompare('Ð“Ñ€ÐµÑ†Ð¸Ñ','Ð Ð¸Ð¼')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">ðŸ›ï¸ Ð“Ñ€ÐµÑ†Ð¸Ñ vs Ð Ð¸Ð¼</span>
-                <span onclick="setCompare('Ð¯Ð¿Ð¾Ð½Ð¸Ñ','ÐšÐ¾Ñ€ÐµÑ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">ðŸ‡¯ðŸ‡µ vs ðŸ‡°ðŸ‡·</span>
-                <span onclick="setCompare('Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ','Ð¤Ñ€Ð°Ð½Ñ†Ð¸Ñ')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">ðŸ‡©ðŸ‡ª vs ðŸ‡«ðŸ‡·</span>
+                <span onclick="setCompare('Казахстан','Монголия')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇰🇿 vs 🇲🇳</span>
+                <span onclick="setCompare('США','Китай')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇺🇸 vs 🇨🇳</span>
+                <span onclick="setCompare('Греция','Рим')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🏛️ Греция vs Рим</span>
+                <span onclick="setCompare('Япония','Корея')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇯🇵 vs 🇰🇷</span>
+                <span onclick="setCompare('Германия','Франция')" style="background:var(--card-bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12px;color:#aaa;cursor:pointer;">🇩🇪 vs 🇫🇷</span>
             </div>
             <div id="compare-loading" style="display:none;text-align:center;padding:40px;color:var(--muted);">
                 <div style="display:inline-flex;gap:6px;align-items:center;">
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
-                    <span style="margin-left:10px;font-size:14px;">ÐÐ½Ð°Ð»Ð¸Ð·Ð¸Ñ€ÑƒÑŽ...</span>
+                    <span style="margin-left:10px;font-size:14px;">Анализирую...</span>
                 </div>
             </div>
             <div id="compare-stats-row" style="display:none;gap:16px;margin-bottom:20px;"></div>
             <div id="compare-result" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;">
-                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">â—† WORLDAI ÐÐÐÐ›Ð˜Ð—</div>
+                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:12px;">◆ WORLDAI АНАЛИЗ</div>
                 <div id="compare-result-text" style="font-size:15px;line-height:1.85;color:var(--text);"></div>
             </div>
         </div>
     </section>
 
-    <!-- â”€â”€ QUIZ SECTION â”€â”€ -->
+    <!-- ── QUIZ SECTION ── -->
     <section id="sec-quiz" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
         <div style="width:100%;max-width:700px;">
-            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">ðŸ§  Ð˜Ð¡Ð¢ÐžÐ Ð˜Ð§Ð•Ð¡ÐšÐ˜Ð™ ÐšÐ’Ð˜Ð—</h2>
-            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">ÐŸÑ€Ð¾Ð²ÐµÑ€ÑŒ ÑÐ²Ð¾Ð¸ Ð·Ð½Ð°Ð½Ð¸Ñ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ð¸ Ð¼Ð¸Ñ€Ð°</p>
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🧠 ИСТОРИЧЕСКИЙ КВИЗ</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Проверь свои знания истории мира</p>
             <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
                 <select id="quiz-topic" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--text);outline:none;font-family:'Manrope',sans-serif;">
-                    <option value="Ð¼Ð¸Ñ€Ð¾Ð²Ð°Ñ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ñ">ðŸŒ ÐœÐ¸Ñ€Ð¾Ð²Ð°Ñ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ñ</option>
-                    <option value="Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ñ ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½Ð°">ðŸ‡°ðŸ‡¿ Ð˜ÑÑ‚Ð¾Ñ€Ð¸Ñ ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½Ð°</option>
-                    <option value="Ð´Ñ€ÐµÐ²Ð½Ð¸Ð¹ Ð¼Ð¸Ñ€">ðŸ›ï¸ Ð”Ñ€ÐµÐ²Ð½Ð¸Ð¹ Ð¼Ð¸Ñ€</option>
-                    <option value="Ð’Ñ‚Ð¾Ñ€Ð°Ñ Ð¼Ð¸Ñ€Ð¾Ð²Ð°Ñ Ð²Ð¾Ð¹Ð½Ð°">âš”ï¸ Ð’Ñ‚Ð¾Ñ€Ð°Ñ Ð¼Ð¸Ñ€Ð¾Ð²Ð°Ñ Ð²Ð¾Ð¹Ð½Ð°</option>
-                    <option value="Ð³ÐµÐ¾Ð³Ñ€Ð°Ñ„Ð¸Ñ Ð¸ ÑÑ‚Ñ€Ð°Ð½Ñ‹">ðŸ—ºï¸ Ð“ÐµÐ¾Ð³Ñ€Ð°Ñ„Ð¸Ñ ÑÑ‚Ñ€Ð°Ð½</option>
-                    <option value="Ð¸Ð·Ð²ÐµÑÑ‚Ð½Ñ‹Ðµ Ð»Ð¸Ñ‡Ð½Ð¾ÑÑ‚Ð¸ Ð¸ÑÑ‚Ð¾Ñ€Ð¸Ð¸">ðŸ‘‘ Ð’ÐµÐ»Ð¸ÐºÐ¸Ðµ Ð»Ð¸Ñ‡Ð½Ð¾ÑÑ‚Ð¸</option>
+                    <option value="мировая история">🌍 Мировая история</option>
+                    <option value="история Казахстана">🇰🇿 История Казахстана</option>
+                    <option value="древний мир">🏛️ Древний мир</option>
+                    <option value="Вторая мировая война">⚔️ Вторая мировая война</option>
+                    <option value="география и страны">🗺️ География стран</option>
+                    <option value="известные личности истории">👑 Великие личности</option>
                 </select>
-                <button onclick="startQuiz()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;">ÐÐ¾Ð²Ñ‹Ð¹ ÐºÐ²Ð¸Ð·</button>
+                <button onclick="startQuiz()" style="background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 22px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;">Новый квиз</button>
             </div>
             <div id="quiz-score-bar" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:16px;display:none;align-items:center;justify-content:space-between;">
-                <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);">Ð¡Ð§ÐÐ¢</span>
+                <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);">СЧЁТ</span>
                 <span id="quiz-score-text" style="font-family:'Space Mono',monospace;font-size:18px;color:var(--green);font-weight:700;">0 / 0</span>
                 <span id="quiz-streak" style="font-size:13px;color:#aaa;"></span>
             </div>
@@ -216,23 +216,23 @@
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .2s;display:inline-block;"></span>
                     <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite .4s;display:inline-block;"></span>
-                    <span style="margin-left:10px;font-size:14px;">Ð“ÐµÐ½ÐµÑ€Ð¸Ñ€ÑƒÑŽ Ð²Ð¾Ð¿Ñ€Ð¾Ñ...</span>
+                    <span style="margin-left:10px;font-size:14px;">Генерирую вопрос...</span>
                 </div>
             </div>
             <div id="quiz-card" style="display:none;">
                 <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;">
-                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:16px;">â—† Ð’ÐžÐŸÐ ÐžÐ¡ <span id="quiz-q-num">1</span></div>
+                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:16px;">◆ ВОПРОС <span id="quiz-q-num">1</span></div>
                     <div id="quiz-question" style="font-size:17px;line-height:1.65;color:var(--text);font-weight:600;margin-bottom:20px;"></div>
                     <div id="quiz-options" style="display:flex;flex-direction:column;gap:10px;"></div>
                 </div>
                 <div id="quiz-explanation" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;">
                     <div id="quiz-exp-text" style="font-size:14px;line-height:1.7;color:var(--text);"></div>
                 </div>
-                <button id="quiz-next-btn" onclick="startQuiz()" style="display:none;background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 24px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;width:100%;">Ð¡Ð»ÐµÐ´ÑƒÑŽÑ‰Ð¸Ð¹ Ð²Ð¾Ð¿Ñ€Ð¾Ñ â†’</button>
+                <button id="quiz-next-btn" onclick="startQuiz()" style="display:none;background:var(--green);color:#000;border:none;border-radius:10px;padding:12px 24px;font-weight:800;font-size:14px;cursor:pointer;font-family:'Manrope',sans-serif;width:100%;">Следующий вопрос →</button>
             </div>
             <div id="quiz-start-hint" style="text-align:center;padding:60px 20px;color:var(--muted);">
-                <div style="font-size:48px;margin-bottom:16px;">ðŸ§ </div>
-                <div style="font-size:15px;">Ð’Ñ‹Ð±ÐµÑ€Ð¸ Ñ‚ÐµÐ¼Ñƒ Ð¸ Ð½Ð°Ð¶Ð¼Ð¸ Â«ÐÐ¾Ð²Ñ‹Ð¹ ÐºÐ²Ð¸Ð·Â»</div>
+                <div style="font-size:48px;margin-bottom:16px;">🧠</div>
+                <div style="font-size:15px;">Выбери тему и нажми «Новый квиз»</div>
             </div>
         </div>
     </section>
@@ -241,5 +241,6 @@
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>
+
 
 
