@@ -838,15 +838,66 @@ window.copyMsg = (id) => {
 
 // ── SPEAK ──
 let currentUtterance = null;
-window.speakMsg = (id, btn) => {
+let currentAudio = null;
+
+function getBestRussianVoice() {
+    return new Promise(resolve => {
+        const pick = () => {
+            const voices = speechSynthesis.getVoices();
+            const ru = voices.filter(v => v.lang.startsWith('ru'));
+            for (const kw of ['Natural', 'Neural', 'Premium', 'Enhanced', 'Online (Natural)']) {
+                const v = ru.find(v => v.name.includes(kw));
+                if (v) return resolve(v);
+            }
+            resolve(ru[0] || null);
+        };
+        if (speechSynthesis.getVoices().length) pick();
+        else speechSynthesis.addEventListener('voiceschanged', pick, { once: true });
+    });
+}
+
+function stopSpeaking() {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    if (currentUtterance) { speechSynthesis.cancel(); currentUtterance = null; }
+    document.querySelectorAll('.speak-btn').forEach(b => { b.textContent = '🔊 Озвучить'; b.classList.remove('speaking'); });
+}
+
+window.speakMsg = async (id, btn) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (currentUtterance) { speechSynthesis.cancel(); currentUtterance = null; document.querySelectorAll('.speak-btn').forEach(b => { b.textContent = '🔊 Озвучить'; b.classList.remove('speaking'); }); return; }
-    const utterance = new SpeechSynthesisUtterance(el.innerText);
+    if (currentUtterance || currentAudio) { stopSpeaking(); return; }
+
+    const text = el.innerText.trim();
+    btn.textContent = '⏳ Загрузка...'; btn.classList.add('speaking');
+
+    // Попытка использовать OpenAI TTS через бэкенд
+    try {
+        const res = await fetch('https://worldai-backend.onrender.com/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice: 'nova', model: 'tts-1' })
+        });
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            currentAudio = new Audio(url);
+            currentAudio.onended = () => { currentAudio = null; URL.revokeObjectURL(url); btn.textContent = '🔊 Озвучить'; btn.classList.remove('speaking'); };
+            currentAudio.onerror = () => { currentAudio = null; btn.textContent = '🔊 Озвучить'; btn.classList.remove('speaking'); };
+            btn.textContent = '⏹ Остановить';
+            currentAudio.play();
+            return;
+        }
+    } catch {}
+
+    // Fallback: браузерный TTS с лучшим голосом
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ru-RU';
+    utterance.rate = 0.95;
+    const voice = await getBestRussianVoice();
+    if (voice) utterance.voice = voice;
     utterance.onend = () => { btn.textContent = '🔊 Озвучить'; btn.classList.remove('speaking'); currentUtterance = null; };
     currentUtterance = utterance;
-    btn.textContent = '⏹ Остановить'; btn.classList.add('speaking');
+    btn.textContent = '⏹ Остановить';
     speechSynthesis.speak(utterance);
 };
 
