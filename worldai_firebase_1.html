@@ -713,6 +713,26 @@ function appendMessage(type, text, animate = true) {
     }
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
 }
+function appendAiLiveMessage(initialText = '', animate = true) {
+    const welcome = document.getElementById('welcome-screen');
+    if (welcome) welcome.remove();
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg msg-ai';
+    if (!animate) div.style.animation = 'none';
+    const msgId = 'msg-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text" id="${msgId}">${mdToHtml(initialText)}</div><div class="msg-actions"><button class="copy-btn" onclick="copyMsg('${msgId}')">📋 Копировать</button><button class="speak-btn" onclick="speakMsg('${msgId}', this)">🔊 Озвучить</button></div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return { wrapper: div, textEl: document.getElementById(msgId), msgId };
+}
+function updateAiLiveMessage(textEl, text) {
+    if (!textEl) return;
+    textEl.innerHTML = mdToHtml(text);
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+}
 function appendTyping() {
     const welcome = document.getElementById('welcome-screen');
     if (welcome) welcome.remove();
@@ -723,6 +743,73 @@ function appendTyping() {
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
 }
 function removeTyping() { const t = document.getElementById('typing-msg'); if (t) t.remove(); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function revealReplyGradually(fullText, onDelta) {
+    const chunks = fullText.match(/.{1,20}(\s|$)/g) || [fullText];
+    for (const part of chunks) {
+        onDelta(part);
+        await sleep(14);
+    }
+}
+function extractReplyFromJson(data, provider) {
+    if (provider === 'claude') return data?.content?.[0]?.text || '';
+    return data?.choices?.[0]?.message?.content || '';
+}
+function extractDeltaFromEvent(obj, provider) {
+    if (!obj || typeof obj !== 'object') return '';
+    if (provider === 'claude') {
+        return obj?.delta?.text || obj?.content_block?.text || obj?.content?.[0]?.text || '';
+    }
+    return obj?.choices?.[0]?.delta?.content || obj?.choices?.[0]?.message?.content || '';
+}
+async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (res.body && contentType.includes('text/event-stream')) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let full = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || '';
+
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || !line.startsWith('data:')) continue;
+                const payloadLine = line.slice(5).trim();
+                if (payloadLine === '[DONE]') continue;
+                try {
+                    const obj = JSON.parse(payloadLine);
+                    const delta = extractDeltaFromEvent(obj, provider);
+                    if (delta) {
+                        full += delta;
+                        onDelta(delta);
+                    }
+                } catch {}
+            }
+        }
+        if (full.trim()) return full;
+        throw new Error('Пустой потоковый ответ');
+    }
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const reply = extractReplyFromJson(data, provider);
+    if (!reply) throw new Error('Пустой ответ от модели');
+    await revealReplyGradually(reply, onDelta);
+    return reply;
+}
 
 // ── MODEL SWITCHER ──
 const MODELS = {
@@ -767,39 +854,43 @@ async function sendMessage() {
         if (userProfile.interests) systemPrompt += ' Интересы пользователя: ' + userProfile.interests + '. Учитывай это в разговорах и иногда задавай вопросы по этим темам.';
 
         const mdl = MODELS[currentModel];
+        let live = null;
+        let liveText = '';
+        const onDelta = (delta) => {
+            if (!delta) return;
+            if (!live) { removeTyping(); live = appendAiLiveMessage(''); }
+            liveText += delta;
+            updateAiLiveMessage(live.textEl, liveText);
+        };
+
         let reply = '';
-
         if (mdl.provider === 'groq') {
-            const res = await fetch(GROQ_WORKER, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048 })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-            reply = data.choices?.[0]?.message?.content;
-
+            reply = await fetchReplyWithStreaming(
+                GROQ_WORKER,
+                { model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                'openai',
+                onDelta
+            );
         } else if (mdl.provider === 'openai') {
-            const res = await fetch(OPENAI_WORKER, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048 })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-            reply = data.choices?.[0]?.message?.content;
-
+            reply = await fetchReplyWithStreaming(
+                OPENAI_WORKER,
+                { model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                'openai',
+                onDelta
+            );
         } else if (mdl.provider === 'claude') {
             const claudeMessages = chatHistory.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
-            const res = await fetch(CLAUDE_WORKER, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: mdl.apiModel, system: systemPrompt, messages: claudeMessages, max_tokens: 2048 })
-            });
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-            reply = data.content?.[0]?.text;
+            reply = await fetchReplyWithStreaming(
+                CLAUDE_WORKER,
+                { model: mdl.apiModel, system: systemPrompt, messages: claudeMessages, max_tokens: 2048, stream: true },
+                'claude',
+                onDelta
+            );
         }
 
         if (!reply) throw new Error('Пустой ответ от модели');
-        removeTyping(); appendMessage('ai', reply);
+        removeTyping();
+        if (!live) appendMessage('ai', reply);
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
         await saveSession(firstUser?.content || text, chatHistory);
