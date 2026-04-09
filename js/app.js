@@ -272,10 +272,65 @@ function appendImageMessage(imageUrl, prompt, animate = true) {
     const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
     const safePrompt = escHtml(prompt || '');
     const fileName = `worldai-image-${Date.now()}.png`;
-    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><a href="${imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${imageUrl}" alt="Сгенерированное изображение"></a><div class="ai-image-caption">${safePrompt}</div><div class="ai-image-tools"><a href="${imageUrl}" target="_blank" rel="noopener noreferrer">Открыть</a><a href="${imageUrl}" download="${fileName}">Скачать</a></div></div></div>`;
+    const openId = 'img-open-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const dlId = 'img-dl-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><img src="${imageUrl}" alt="Сгенерированное изображение"><div class="ai-image-caption">${safePrompt}</div><div class="ai-image-tools"><button id="${openId}" type="button">Открыть</button><button id="${dlId}" type="button">Скачать</button></div></div></div>`;
     msgs.appendChild(div);
+    const openBtn = div.querySelector(`#${openId}`);
+    const dlBtn = div.querySelector(`#${dlId}`);
+    if (openBtn) openBtn.onclick = () => showImagePreview(imageUrl, fileName);
+    if (dlBtn) dlBtn.onclick = () => downloadGeneratedImage(imageUrl, fileName);
     msgs.scrollTop = msgs.scrollHeight;
     return div;
+}
+function isLikelyImagePrompt(text) {
+    const t = String(text || '').toLowerCase();
+    if (!t) return false;
+    const make = /(создай|сгенерируй|нарисуй|generate|draw)/.test(t);
+    const subject = /(картин|изображ|фото|image|art)/.test(t);
+    return make && subject;
+}
+function closeImagePreview() {
+    const el = document.getElementById('img-preview-overlay');
+    if (el) el.remove();
+}
+async function downloadGeneratedImage(imageUrl, fileName = `worldai-image-${Date.now()}.png`) {
+    try {
+        const res = await fetch(imageUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1200);
+    } catch {
+        // fallback for strict CORS/data URL cases
+        const a = document.createElement('a');
+        a.href = imageUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+}
+function showImagePreview(imageUrl, fileName = `worldai-image-${Date.now()}.png`) {
+    closeImagePreview();
+    const overlay = document.createElement('div');
+    overlay.className = 'img-preview-overlay';
+    overlay.id = 'img-preview-overlay';
+    overlay.innerHTML = `<div class="img-preview-panel"><button class="img-preview-close" type="button" title="Закрыть">✕</button><img src="${imageUrl}" alt="Preview"><div class="img-preview-toolbar"><button type="button" id="img-preview-download">Скачать</button><button type="button" id="img-preview-close-btn">Закрыть</button></div></div>`;
+    document.body.appendChild(overlay);
+    const closeBtn = overlay.querySelector('.img-preview-close');
+    const closeBtn2 = overlay.querySelector('#img-preview-close-btn');
+    const downloadBtn = overlay.querySelector('#img-preview-download');
+    if (closeBtn) closeBtn.onclick = closeImagePreview;
+    if (closeBtn2) closeBtn2.onclick = closeImagePreview;
+    if (downloadBtn) downloadBtn.onclick = () => downloadGeneratedImage(imageUrl, fileName);
+    overlay.onclick = (e) => { if (e.target === overlay) closeImagePreview(); };
 }
 function appendAiLiveMessage(initialText = '', animate = true) {
     const welcome = document.getElementById('welcome-screen');
@@ -525,7 +580,8 @@ async function sendMessage() {
         const mdl = MODELS[currentModel];
         const openaiModelForDoc = (mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini';
 
-        if (imageModeEnabled) {
+        const shouldGenerateImage = imageModeEnabled || (!hasAttachment && isLikelyImagePrompt(text));
+        if (shouldGenerateImage) {
             if (!text) throw new Error('Опиши, какое изображение нужно сгенерировать.');
             if (hasAttachment) throw new Error('Для генерации изображения убери прикреплённый файл.');
             const imageUrl = await generateImageFromPrompt(text);
@@ -534,6 +590,7 @@ async function sendMessage() {
             chatHistory.push({ role: 'assistant', content: `[Изображение сгенерировано по запросу: ${text}]` });
             const firstUserImg = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserImg?.content || text, chatHistory);
+            setImageMode(false);
             return;
         }
 
