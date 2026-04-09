@@ -271,7 +271,8 @@ function appendImageMessage(imageUrl, prompt, animate = true) {
     if (!animate) div.style.animation = 'none';
     const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
     const safePrompt = escHtml(prompt || '');
-    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><img src="${imageUrl}" alt="Сгенерированное изображение"><div class="ai-image-caption">${safePrompt}</div></div></div>`;
+    const fileName = `worldai-image-${Date.now()}.png`;
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><a href="${imageUrl}" target="_blank" rel="noopener noreferrer"><img src="${imageUrl}" alt="Сгенерированное изображение"></a><div class="ai-image-caption">${safePrompt}</div><div class="ai-image-tools"><a href="${imageUrl}" target="_blank" rel="noopener noreferrer">Открыть</a><a href="${imageUrl}" download="${fileName}">Скачать</a></div></div></div>`;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
     return div;
@@ -441,9 +442,19 @@ window.handleFilePicked = async (event) => {
         const file = event?.target?.files?.[0];
         if (!file) return;
         if (file.size > 8 * 1024 * 1024) throw new Error('Файл слишком большой. Максимум 8 MB.');
-        const supported = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown', 'text/csv', 'application/json'];
-        const byExt = /\.(pdf|docx|txt|md|csv|json)$/i.test(file.name);
-        if (!supported.includes(file.type) && !byExt) throw new Error('Поддерживаются PDF, DOCX, TXT, MD, CSV и JSON.');
+        const supported = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'text/markdown',
+            'text/csv',
+            'application/json',
+            'image/png',
+            'image/jpeg',
+            'image/webp'
+        ];
+        const byExt = /\.(pdf|docx|txt|md|csv|json|png|jpe?g|webp)$/i.test(file.name);
+        if (!supported.includes(file.type) && !byExt) throw new Error('Поддерживаются PDF, DOCX, TXT, MD, CSV, JSON, PNG, JPG, JPEG, WEBP.');
         const dataUrl = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ''));
