@@ -93,10 +93,17 @@
                     <button class="model-btn" id="mbtn-claude-sonnet" onclick="selectModel('claude-sonnet')"><span class="model-dot"></span><span>Claude Sonnet</span><span class="model-provider">Anthropic</span></button>
                 </div>
                 <div class="input-wrap">
+                    <button class="tool-btn" id="attach-btn" onclick="openAttachmentPicker()" title="Прикрепить документ">📎</button>
+                    <button class="tool-btn" id="image-mode-btn" onclick="toggleImageMode()" title="Сгенерировать изображение">🖼</button>
                     <textarea id="user-input" rows="1" placeholder="Задай любой вопрос..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
                     <button class="send-btn" id="send-btn" onclick="sendMessage()">
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                     </button>
+                </div>
+                <input id="doc-file-input" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,.json" style="display:none" onchange="handleFilePicked(event)" />
+                <div class="attachment-chip" id="attachment-chip" style="display:none">
+                    <span id="attachment-chip-text"></span>
+                    <button type="button" onclick="clearAttachment()" title="Убрать файл">✕</button>
                 </div>
                 <div class="input-hint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка &nbsp;·&nbsp; <span id="current-model-hint" style="color:#555">Llama 3.3 (Groq)</span></div>
             </div>
