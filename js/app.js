@@ -19,7 +19,10 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const provider = new GoogleAuthProvider();
-const GROQ_WORKER = 'https://worldai-backend.onrender.com/api/chat';
+const BACKEND_BASE = 'https://worldai-backend.onrender.com';
+const GROQ_WORKER = `${BACKEND_BASE}/api/chat`;
+const DOC_ANALYZE_WORKER = `${BACKEND_BASE}/api/analyze-doc`;
+const IMAGE_WORKER = `${BACKEND_BASE}/api/image`;
 
 // ── COUNTRY TRANSLATION + CODES DICT ──
 const countryTranslations = {
@@ -73,6 +76,8 @@ let sessions = [];
 let currentSessionId = null;
 let isLoading = false;
 let map = null;
+let imageModeEnabled = false;
+let pendingAttachment = null;
 
 // ── AUTH ──
 window.signInWithGoogle = async () => {
@@ -257,6 +262,20 @@ function appendMessage(type, text, animate = true) {
     }
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
 }
+function appendImageMessage(imageUrl, prompt, animate = true) {
+    const welcome = document.getElementById('welcome-screen');
+    if (welcome) welcome.remove();
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg msg-ai';
+    if (!animate) div.style.animation = 'none';
+    const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
+    const safePrompt = escHtml(prompt || '');
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><img src="${imageUrl}" alt="Сгенерированное изображение"><div class="ai-image-caption">${safePrompt}</div></div></div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+}
 function appendAiLiveMessage(initialText = '', animate = true) {
     const welcome = document.getElementById('welcome-screen');
     if (welcome) welcome.remove();
@@ -364,7 +383,7 @@ const MODELS = {
     'claude-sonnet': { label: 'Claude Sonnet',     hint: 'Claude Sonnet 4.6 · Anthropic', provider: 'claude',  apiModel: 'claude-sonnet-4-6' },
 };
 // Worker endpoints — замените на свои!
-const OPENAI_WORKER  = 'https://worldai-backend.onrender.com/api/chat';             // стабильный OpenAI endpoint через твой backend
+const OPENAI_WORKER  = `${BACKEND_BASE}/api/chat`;                                  // стабильный OpenAI endpoint через твой backend
 const CLAUDE_WORKER  = 'https://empty-sea-c1b4.nkmaster1408.workers.dev/claude';   // должен проксировать api.anthropic.com/v1/messages
 let currentModel = 'llama';
 
@@ -380,17 +399,112 @@ window.selectModel = (key) => {
     if (input) input.focus();
 };
 
+function updateAttachmentChip() {
+    const chip = document.getElementById('attachment-chip');
+    const chipText = document.getElementById('attachment-chip-text');
+    if (!chip || !chipText) return;
+    if (!pendingAttachment) {
+        chip.style.display = 'none';
+        chipText.textContent = '';
+        return;
+    }
+    const kb = Math.max(1, Math.round((pendingAttachment.size || 0) / 1024));
+    chipText.textContent = `📎 ${pendingAttachment.name} (${kb} KB)`;
+    chip.style.display = 'flex';
+}
+function setImageMode(enabled) {
+    imageModeEnabled = !!enabled;
+    const btn = document.getElementById('image-mode-btn');
+    const input = document.getElementById('user-input');
+    if (btn) btn.classList.toggle('active', imageModeEnabled);
+    if (input) input.placeholder = imageModeEnabled ? 'Опиши изображение, которое хочешь сгенерировать...' : 'Задай любой вопрос...';
+}
+window.toggleImageMode = () => {
+    setImageMode(!imageModeEnabled);
+    if (imageModeEnabled && pendingAttachment) {
+        pendingAttachment = null;
+        updateAttachmentChip();
+    }
+};
+window.openAttachmentPicker = () => {
+    const picker = document.getElementById('doc-file-input');
+    if (picker) picker.click();
+};
+window.clearAttachment = () => {
+    pendingAttachment = null;
+    const picker = document.getElementById('doc-file-input');
+    if (picker) picker.value = '';
+    updateAttachmentChip();
+};
+window.handleFilePicked = async (event) => {
+    try {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) throw new Error('Файл слишком большой. Максимум 8 MB.');
+        const supported = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown', 'text/csv', 'application/json'];
+        const byExt = /\.(pdf|docx|txt|md|csv|json)$/i.test(file.name);
+        if (!supported.includes(file.type) && !byExt) throw new Error('Поддерживаются PDF, DOCX, TXT, MD, CSV и JSON.');
+        const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+            reader.readAsDataURL(file);
+        });
+        const base64 = dataUrl.split(',')[1];
+        if (!base64) throw new Error('Ошибка чтения файла');
+        pendingAttachment = { name: file.name, type: file.type || 'application/octet-stream', size: file.size, base64 };
+        setImageMode(false);
+        updateAttachmentChip();
+    } catch (e) {
+        alert(e.message || 'Ошибка загрузки файла');
+        window.clearAttachment();
+    }
+};
+async function generateImageFromPrompt(prompt) {
+    const res = await fetch(IMAGE_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, size: '1024x1024' })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    if (data.imageUrl) return data.imageUrl;
+    if (data.imageBase64) return `data:${data.mimeType || 'image/png'};base64,${data.imageBase64}`;
+    throw new Error('Не удалось получить изображение');
+}
+async function analyzeDocumentWithAI(question, modelName) {
+    if (!pendingAttachment) throw new Error('Сначала прикрепи документ');
+    const res = await fetch(DOC_ANALYZE_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            question,
+            model: modelName || 'gpt-4o-mini',
+            fileName: pendingAttachment.name,
+            mimeType: pendingAttachment.type,
+            base64: pendingAttachment.base64
+        })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    return data.choices?.[0]?.message?.content || data.answer || '';
+}
+
 // ── SEND ──
 window.quickSend = (text) => { document.getElementById('user-input').value = text; sendMessage(); };
 async function sendMessage() {
     if (isLoading || !currentUser) return;
     const input = document.getElementById('user-input');
     const text = input.value.trim();
-    if (!text) return;
+    const hasAttachment = !!pendingAttachment;
+    if (!text && !hasAttachment) return;
     input.value = ''; input.style.height = 'auto';
     isLoading = true; document.getElementById('send-btn').disabled = true;
-    appendMessage('user', text);
-    chatHistory.push({ role: 'user', content: text });
+    const userTextForHistory = hasAttachment
+        ? (text ? `${text}\n\n📎 Документ: ${pendingAttachment.name}` : `📎 Документ: ${pendingAttachment.name}\nСделай краткое резюме и ключевые выводы.`)
+        : text;
+    appendMessage('user', userTextForHistory);
+    chatHistory.push({ role: 'user', content: userTextForHistory });
     appendTyping();
     try {
         let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай на русском языке. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
@@ -398,6 +512,33 @@ async function sendMessage() {
         if (userProfile.interests) systemPrompt += ' Интересы пользователя: ' + userProfile.interests + '. Учитывай это в разговорах и иногда задавай вопросы по этим темам.';
 
         const mdl = MODELS[currentModel];
+        const openaiModelForDoc = (mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini';
+
+        if (imageModeEnabled) {
+            if (!text) throw new Error('Опиши, какое изображение нужно сгенерировать.');
+            if (hasAttachment) throw new Error('Для генерации изображения убери прикреплённый файл.');
+            const imageUrl = await generateImageFromPrompt(text);
+            removeTyping();
+            appendImageMessage(imageUrl, text);
+            chatHistory.push({ role: 'assistant', content: `[Изображение сгенерировано по запросу: ${text}]` });
+            const firstUserImg = chatHistory.find(m => m.role === 'user');
+            await saveSession(firstUserImg?.content || text, chatHistory);
+            return;
+        }
+
+        if (hasAttachment) {
+            const question = text || 'Сделай краткое резюме документа и выдели ключевые факты.';
+            const docReply = await analyzeDocumentWithAI(question, openaiModelForDoc);
+            if (!docReply) throw new Error('Пустой ответ по документу');
+            removeTyping();
+            appendMessage('ai', docReply);
+            chatHistory.push({ role: 'assistant', content: docReply });
+            const firstUserDoc = chatHistory.find(m => m.role === 'user');
+            await saveSession(firstUserDoc?.content || userTextForHistory, chatHistory);
+            window.clearAttachment();
+            return;
+        }
+
         let live = null;
         let liveText = '';
         const onDelta = (delta) => {
@@ -437,7 +578,7 @@ async function sendMessage() {
         if (!live) appendMessage('ai', reply);
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
-        await saveSession(firstUser?.content || text, chatHistory);
+        await saveSession(firstUser?.content || userTextForHistory, chatHistory);
     } catch (err) { removeTyping(); appendMessage('ai', `❌ **Ошибка:** ${err.message}`); }
     isLoading = false; document.getElementById('send-btn').disabled = false; input.focus();
 }
