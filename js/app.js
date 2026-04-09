@@ -364,7 +364,7 @@ const MODELS = {
     'claude-sonnet': { label: 'Claude Sonnet',     hint: 'Claude Sonnet 4.6 · Anthropic', provider: 'claude',  apiModel: 'claude-sonnet-4-6' },
 };
 // Worker endpoints — замените на свои!
-const OPENAI_WORKER  = 'https://empty-sea-c1b4.nkmaster1408.workers.dev/openai';   // должен проксировать api.openai.com/v1/chat/completions
+const OPENAI_WORKER  = 'https://worldai-backend.onrender.com/api/chat';             // стабильный OpenAI endpoint через твой backend
 const CLAUDE_WORKER  = 'https://empty-sea-c1b4.nkmaster1408.workers.dev/claude';   // должен проксировать api.anthropic.com/v1/messages
 let currentModel = 'llama';
 
@@ -418,7 +418,7 @@ async function sendMessage() {
         } else if (mdl.provider === 'openai') {
             reply = await fetchReplyWithStreaming(
                 OPENAI_WORKER,
-                { model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                { provider: 'openai', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
                 'openai',
                 onDelta
             );
