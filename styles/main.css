@@ -104,6 +104,15 @@
         .input-outer { width: 100%; max-width: 780px; }
         .input-wrap { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; display: flex; align-items: flex-end; padding: 12px 14px; gap: 12px; transition: border-color .2s; }
         .input-wrap:focus-within { border-color: #3a3a3a; }
+        .tool-btn { background: var(--card-bg); border: 1px solid var(--border); color: #9a9a9a; border-radius: 9px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0; transition: .15s; font-size: 15px; }
+        .tool-btn:hover { border-color: var(--green); color: var(--green); }
+        .tool-btn.active { border-color: var(--green); color: var(--green); background: #0a2a0a; }
+        .attachment-chip { margin-top: 8px; display: flex; align-items: center; gap: 8px; width: fit-content; background: #111; border: 1px solid var(--border); border-radius: 16px; padding: 5px 10px; font-size: 12px; color: #b8b8b8; }
+        .attachment-chip button { background: none; border: none; color: #888; cursor: pointer; font-size: 12px; }
+        .attachment-chip button:hover { color: var(--danger); }
+        .ai-image { margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #0e0e0e; max-width: 460px; }
+        .ai-image img { width: 100%; display: block; object-fit: cover; }
+        .ai-image-caption { font-size: 12px; color: #888; padding: 8px 10px; border-top: 1px solid var(--border); }
         #user-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: 'Manrope', sans-serif; font-size: 15px; resize: none; max-height: 160px; line-height: 1.6; }
         #user-input::placeholder { color: #444; }
         .send-btn { background: var(--green); border: none; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: opacity .2s; }
@@ -119,7 +128,7 @@
         .model-btn.active .model-dot { background: var(--green); }
         .model-provider { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
         .model-bar-label { font-size: 10px; color: #444; font-family: 'Space Mono', monospace; letter-spacing: 1px; white-space: nowrap; }
-        @media (max-width: 900px) { .model-bar { gap: 6px; } .model-btn { padding: 7px 12px; font-size: 12px; min-height: 36px; } }
+        @media (max-width: 900px) { .model-bar { gap: 6px; } .model-btn { padding: 7px 12px; font-size: 12px; min-height: 36px; } .tool-btn { width: 38px; height: 38px; font-size: 16px; } }
         @media (max-width: 500px) { .model-bar { gap: 5px; } .model-btn { padding: 6px 10px; font-size: 11px; } .model-bar-label { display: none; } }
         #map { width: 100%; height: 100%; }
         #sec-map { position: relative; }
