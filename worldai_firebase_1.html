@@ -60,6 +60,8 @@
     <div class="nav-item" id="nav-search" onclick="setTab('sec-search','nav-search')"><span>🔍</span><span>Поиск стран</span></div>
     <div class="nav-item" id="nav-compare" onclick="setTab('sec-compare','nav-compare')"><span>⚖️</span><span>Сравнение стран</span></div>
     <div class="nav-item" id="nav-quiz" onclick="setTab('sec-quiz','nav-quiz')"><span>🧠</span><span>Квиз</span></div>
+    <div class="nav-item" id="nav-battle" onclick="setTab('sec-battle','nav-battle')"><span>🛡️</span><span>Timeline Battles</span></div>
+    <div class="nav-item" id="nav-story" onclick="setTab('sec-story','nav-story')"><span>🎬</span><span>Story Mode</span></div>
     <div class="divider"></div>
     <div class="history-label">История</div>
     <div class="history-list" id="history-list"></div>
@@ -240,6 +242,88 @@
             <div id="quiz-start-hint" style="text-align:center;padding:60px 20px;color:var(--muted);">
                 <div style="font-size:48px;margin-bottom:16px;">🧠</div>
                 <div style="font-size:15px;">Выбери тему и нажми «Новый квиз»</div>
+            </div>
+        </div>
+    </section>
+
+    <section id="sec-battle" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+        <div style="width:100%;max-width:900px;">
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🛡️ TIMELINE BATTLES</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Историческая дуэль стран по эпохам с раундами и очками влияния</p>
+            <div class="battle-controls">
+                <input id="battle-a" type="text" placeholder="Страна A..." value="Казахстан">
+                <span class="battle-vs">VS</span>
+                <input id="battle-b" type="text" placeholder="Страна B..." value="Монголия">
+                <select id="battle-era">
+                    <option value="Древний мир">🏛️ Древний мир</option>
+                    <option value="Средневековье">⚔️ Средневековье</option>
+                    <option value="Новое время">🧭 Новое время</option>
+                    <option value="XX век">🎖️ XX век</option>
+                </select>
+                <button onclick="startTimelineBattle()">Запустить дуэль</button>
+            </div>
+            <div class="chips" style="justify-content:flex-start;margin-top:10px;margin-bottom:22px;">
+                <div class="chip" onclick="prefillBattle('Греция','Рим','Древний мир')">🏛️ Греция vs Рим</div>
+                <div class="chip" onclick="prefillBattle('Япония','Корея','Средневековье')">🇯🇵 Япония vs 🇰🇷 Корея</div>
+                <div class="chip" onclick="prefillBattle('Франция','Великобритания','Новое время')">🇫🇷 Франция vs 🇬🇧 Британия</div>
+                <div class="chip" onclick="prefillBattle('США','СССР','XX век')">🇺🇸 США vs 🇷🇺 СССР</div>
+            </div>
+            <div id="battle-loading" class="mode-loading" style="display:none;">ИИ строит историческую дуэль...</div>
+            <div id="battle-arena" style="display:none;">
+                <div class="battle-scoreboard">
+                    <div class="battle-side"><div class="battle-side-label" id="battle-side-a-label">A</div><div class="battle-side-score" id="battle-score-a">0</div></div>
+                    <div class="battle-center">
+                        <div class="battle-era" id="battle-era-label">—</div>
+                        <div class="battle-status" id="battle-status">Раунд 1 из 4</div>
+                    </div>
+                    <div class="battle-side"><div class="battle-side-label" id="battle-side-b-label">B</div><div class="battle-side-score" id="battle-score-b">0</div></div>
+                </div>
+                <div id="battle-rounds" class="battle-rounds"></div>
+                <div id="battle-summary" class="battle-summary"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="sec-story" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+        <div style="width:100%;max-width:900px;">
+            <h2 style="font-family:'Space Mono',monospace;color:var(--green);letter-spacing:3px;margin-bottom:8px;">🎬 STORY MODE</h2>
+            <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Интерактивный исторический тур: сцены, выборы и личный финал</p>
+            <div class="story-controls">
+                <input id="story-theme" type="text" placeholder="Тема тура..." value="Шёлковый путь">
+                <select id="story-style">
+                    <option value="приключение">🧭 Приключение</option>
+                    <option value="документальный стиль">🎞️ Документальный стиль</option>
+                    <option value="геополитический анализ">🌍 Геополитический анализ</option>
+                </select>
+                <select id="story-length">
+                    <option value="4">Короткий тур (4 сцены)</option>
+                    <option value="6">Большой тур (6 сцен)</option>
+                </select>
+                <button onclick="startStoryMode()">Запустить тур</button>
+            </div>
+            <div class="chips" style="justify-content:flex-start;margin-top:10px;margin-bottom:22px;">
+                <div class="chip" onclick="prefillStory('Шёлковый путь','приключение',4)">🐫 Шёлковый путь</div>
+                <div class="chip" onclick="prefillStory('Колониальные империи','геополитический анализ',4)">⚓ Колониальные империи</div>
+                <div class="chip" onclick="prefillStory('Кочевые цивилизации Евразии','документальный стиль',6)">🏹 Кочевые цивилизации</div>
+            </div>
+            <div id="story-loading" class="mode-loading" style="display:none;">Создаю маршрут и ключевые сцены...</div>
+            <div id="story-stage" style="display:none;">
+                <div class="story-progress-wrap">
+                    <div class="story-progress-head">
+                        <span id="story-progress-title">Сцена 1</span>
+                        <span id="story-progress-count">1/4</span>
+                    </div>
+                    <div class="story-progress-track"><div id="story-progress-fill" class="story-progress-fill"></div></div>
+                </div>
+                <div class="story-scene-card">
+                    <div class="story-scene-meta" id="story-scene-meta">Год · Локация</div>
+                    <h3 id="story-scene-title">Название сцены</h3>
+                    <p id="story-scene-text">Описание сцены...</p>
+                    <div id="story-options" class="story-options"></div>
+                    <div id="story-feedback" class="story-feedback" style="display:none;"></div>
+                    <button id="story-next-btn" onclick="nextStoryScene()" style="display:none;">Следующая сцена →</button>
+                </div>
+                <div id="story-finale" class="story-finale" style="display:none;"></div>
             </div>
         </div>
     </section>
