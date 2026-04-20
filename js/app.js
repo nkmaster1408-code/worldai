@@ -174,12 +174,33 @@ async function deleteSess(id) {
     try { await deleteDoc(doc(db, 'users', currentUser.uid, 'sessions', String(id))); } catch(e) {}
 }
 
+function applySectionMotion(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    section.classList.remove('section-animate');
+    section.querySelectorAll('.stagger-item').forEach((el) => el.classList.remove('stagger-item'));
+
+    const candidates = section.querySelectorAll(
+        '.chip, .stat-card, .compare-col, .quiz-option, .battle-round, .story-option, .story-scene-card, .battle-scoreboard, .mode-loading, .msg'
+    );
+    [...candidates].slice(0, 8).forEach((el) => el.classList.add('stagger-item'));
+
+    void section.offsetWidth;
+    section.classList.add('section-animate');
+    setTimeout(() => {
+        section.classList.remove('section-animate');
+        section.querySelectorAll('.stagger-item').forEach((el) => el.classList.remove('stagger-item'));
+    }, 760);
+}
+
 // ── TABS ──
 window.setTab = (sectionId, navId) => {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById(sectionId).classList.add('active');
     document.getElementById(navId).classList.add('active');
+    applySectionMotion(sectionId);
     if (sectionId === 'sec-map') initMap();
     if (sectionId === 'sec-search') { setTimeout(() => document.getElementById('country-input').focus(), 100); }
 };
@@ -680,6 +701,7 @@ if (localStorage.getItem('theme') === 'light') {
     document.documentElement.classList.add('light');
     setTimeout(() => { const b = document.getElementById('theme-btn'); if(b) b.textContent = '🌑 Тёмная тема'; }, 100);
 }
+setTimeout(() => applySectionMotion('sec-ai'), 120);
 
 // ── COPY ──
 window.copyMsg = (id) => {
