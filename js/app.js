@@ -116,7 +116,15 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ── USER PROFILE ──
-let userProfile = { name: '', interests: '' };
+const DEFAULT_PROFILE = {
+    name: '',
+    age: '',
+    about: '',
+    interests: '',
+    goals: '',
+    tone: 'friendly'
+};
+let userProfile = { ...DEFAULT_PROFILE };
 
 async function loadProfile() {
     if (!currentUser) return;
@@ -124,27 +132,36 @@ async function loadProfile() {
         const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
         const snap = await getDoc(doc(db, 'users', currentUser.uid, 'profile', 'data'));
         if (snap.exists()) {
-            userProfile = snap.data();
+            userProfile = { ...DEFAULT_PROFILE, ...snap.data() };
+            populateProfileForm();
+            renderProfilePreview();
+            if (userProfile.name) {
+                document.getElementById('user-name').textContent = userProfile.name;
+            }
         } else {
-            setTimeout(() => askForProfile(), 1500);
+            userProfile = { ...DEFAULT_PROFILE };
+            populateProfileForm();
+            renderProfilePreview();
+            setTimeout(() => askForProfile(), 1000);
         }
     } catch(e) { console.error(e); }
 }
 
-async function saveProfile(name, interests) {
+async function saveProfile(profileData) {
     if (!currentUser) return;
     try {
-        userProfile = { name, interests };
+        userProfile = { ...DEFAULT_PROFILE, ...profileData };
         await setDoc(doc(db, 'users', currentUser.uid, 'profile', 'data'), userProfile);
+        if (userProfile.name) {
+            document.getElementById('user-name').textContent = userProfile.name;
+        }
+        renderProfilePreview();
     } catch(e) { console.error(e); }
 }
 
 function askForProfile() {
-    const name = prompt('\u041a\u0430\u043a \u0442\u0435\u0431\u044f \u0437\u043e\u0432\u0443\u0442?');
-    if (!name || !name.trim()) return;
-    const interests = prompt('\u0427\u0435\u043c \u0438\u043d\u0442\u0435\u0440\u0435\u0441\u0443\u0435\u0448\u044c\u0441\u044f? (\u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435, \u0438\u0441\u0442\u043e\u0440\u0438\u044f, \u043c\u0443\u0437\u044b\u043a\u0430)');
-    saveProfile(name.trim(), (interests || '').trim());
-    appendMessage('ai', '\u041f\u0440\u0438\u044f\u0442\u043d\u043e \u043f\u043e\u0437\u043d\u0430\u043a\u043e\u043c\u0438\u0442\u044c\u0441\u044f, ' + name.trim() + '! \u0422\u0435\u043f\u0435\u0440\u044c \u044f \u0431\u0443\u0434\u0443 \u043f\u043e\u043c\u043d\u0438\u0442\u044c \u0442\u0435\u0431\u044f. \u0427\u0435\u043c \u043c\u043e\u0433\u0443 \u043f\u043e\u043c\u043e\u0447\u044c?');
+    setTab('sec-profile', 'nav-profile');
+    setProfileStatus('Заполни профиль, чтобы ИИ отвечал персонально.', false);
 }
 
 // ── FIRESTORE ──
@@ -182,7 +199,7 @@ function applySectionMotion(sectionId) {
     section.querySelectorAll('.stagger-item').forEach((el) => el.classList.remove('stagger-item'));
 
     const candidates = section.querySelectorAll(
-        '.chip, .stat-card, .compare-col, .quiz-option, .battle-round, .story-option, .story-scene-card, .battle-scoreboard, .mode-loading, .msg'
+        '.chip, .stat-card, .compare-col, .quiz-option, .battle-round, .story-option, .story-scene-card, .battle-scoreboard, .mode-loading, .msg, .profile-card, .profile-field'
     );
     [...candidates].slice(0, 8).forEach((el) => el.classList.add('stagger-item'));
 
@@ -607,7 +624,14 @@ async function sendMessage() {
     try {
         let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай на русском языке. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
         if (userProfile.name) systemPrompt += ' Имя пользователя: ' + userProfile.name + '. Обращайся к нему по имени.';
+        if (userProfile.age) systemPrompt += ' Возраст пользователя: ' + userProfile.age + '.';
+        if (userProfile.about) systemPrompt += ' О пользователе: ' + userProfile.about + '.';
         if (userProfile.interests) systemPrompt += ' Интересы пользователя: ' + userProfile.interests + '. Учитывай это в разговорах и иногда задавай вопросы по этим темам.';
+        if (userProfile.goals) systemPrompt += ' Цели пользователя: ' + userProfile.goals + '. Предлагай шаги и советы, связанные с этими целями.';
+        if (userProfile.tone === 'mentor') systemPrompt += ' Стиль общения: как наставник, структурируй и объясняй по шагам.';
+        if (userProfile.tone === 'concise') systemPrompt += ' Стиль общения: коротко и по делу, без лишней воды.';
+        if (userProfile.tone === 'deep') systemPrompt += ' Стиль общения: глубоко, подробно, с примерами и деталями.';
+        if (userProfile.tone === 'friendly') systemPrompt += ' Стиль общения: дружелюбно и поддерживающе.';
 
         const mdl = MODELS[currentModel];
         const openaiModelForDoc = (mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini';
@@ -814,14 +838,95 @@ window.renameSession = async (id) => {
 };
 
 // ── EDIT PROFILE ──
-window.editProfile = () => {
-    const name = prompt('\u0418\u043c\u044f:', userProfile.name || '');
-    if (name === null) return;
-    const interests = prompt('\u0418\u043d\u0442\u0435\u0440\u0435\u0441\u044b:', userProfile.interests || '');
-    if (interests === null) return;
-    saveProfile(name.trim(), interests.trim());
-    alert('\u041f\u0440\u043e\u0444\u0438\u043b\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d!');
+function setProfileStatus(message = '', isError = false) {
+    const statusEl = document.getElementById('profile-status');
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? 'var(--danger)' : '#9a9a9a';
+}
+
+function collectProfileForm() {
+    const name = document.getElementById('profile-name')?.value?.trim() || '';
+    const ageRaw = document.getElementById('profile-age')?.value?.trim() || '';
+    const ageNum = Number(ageRaw);
+    const age = ageRaw && Number.isFinite(ageNum) ? String(Math.max(8, Math.min(99, Math.floor(ageNum)))) : '';
+    const about = document.getElementById('profile-about')?.value?.trim() || '';
+    const interests = document.getElementById('profile-interests')?.value?.trim() || '';
+    const goals = document.getElementById('profile-goals')?.value?.trim() || '';
+    const tone = document.getElementById('profile-tone')?.value || 'friendly';
+    return { name, age, about, interests, goals, tone };
+}
+
+function populateProfileForm() {
+    const p = { ...DEFAULT_PROFILE, ...userProfile };
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('profile-name', p.name);
+    set('profile-age', p.age);
+    set('profile-about', p.about);
+    set('profile-interests', p.interests);
+    set('profile-goals', p.goals);
+    set('profile-tone', p.tone || 'friendly');
+}
+
+function renderProfilePreview() {
+    const previewEl = document.getElementById('profile-preview-text');
+    if (!previewEl) return;
+    const p = { ...DEFAULT_PROFILE, ...userProfile };
+    const toneMap = {
+        friendly: 'дружелюбно и просто',
+        mentor: 'как наставник, по шагам',
+        concise: 'кратко и по делу',
+        deep: 'глубоко и подробно'
+    };
+    previewEl.textContent =
+`Ник: ${p.name || 'не задан'}
+Возраст: ${p.age || 'не указан'}
+О себе: ${p.about || 'не заполнено'}
+Интересы: ${p.interests || 'не заполнено'}
+Цели: ${p.goals || 'не заполнено'}
+Стиль ответов ИИ: ${toneMap[p.tone] || toneMap.friendly}`;
+}
+
+function bindProfileLivePreview() {
+    const ids = ['profile-name', 'profile-age', 'profile-about', 'profile-interests', 'profile-goals', 'profile-tone'];
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.bound === '1') return;
+        const handler = () => {
+            const draft = collectProfileForm();
+            const prev = userProfile;
+            userProfile = { ...DEFAULT_PROFILE, ...draft };
+            renderProfilePreview();
+            userProfile = prev;
+        };
+        el.addEventListener('input', handler);
+        el.dataset.bound = '1';
+    });
+}
+
+window.saveProfileFromForm = async () => {
+    if (!currentUser) return;
+    const profile = collectProfileForm();
+    if (!profile.name) {
+        setProfileStatus('Укажи никнейм, чтобы сохранить профиль.', true);
+        return;
+    }
+    await saveProfile(profile);
+    setProfileStatus('Профиль сохранён.');
 };
+
+window.resetProfileForm = () => {
+    populateProfileForm();
+    setProfileStatus('Изменения сброшены.');
+};
+
+window.editProfile = () => {
+    setTab('sec-profile', 'nav-profile');
+    populateProfileForm();
+    renderProfilePreview();
+    setProfileStatus('');
+};
+bindProfileLivePreview();
 
 // ── DELETE ONE SESSION ──
 window.deleteOneSession = async (id) => {
