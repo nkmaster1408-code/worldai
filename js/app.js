@@ -1328,21 +1328,54 @@ function parseJsonFromModelText(rawText) {
     }
 }
 
-async function requestGroqJson(prompt, maxTokens = 1300) {
-    const res = await fetch(GROQ_WORKER, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            provider: 'groq',
-            model: 'llama-3.3-70b-versatile',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: maxTokens
-        })
-    });
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-    const content = data.choices?.[0]?.message?.content || '';
-    return parseJsonFromModelText(content);
+async function requestGroqJson(prompt, maxTokens = 1300, retries = 2) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 22000);
+            const res = await fetch(GROQ_WORKER, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: 'groq',
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [{ role: 'user', content: prompt }],
+                    max_tokens: maxTokens
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+            const content = data.choices?.[0]?.message?.content || '';
+            return parseJsonFromModelText(content);
+        } catch (e) {
+            lastError = e;
+            if (attempt < retries) {
+                await sleep(500 * (attempt + 1));
+                continue;
+            }
+        }
+    }
+    throw lastError || new Error('Groq request failed');
+}
+
+function buildFallbackBattle(countryA, countryB, era) {
+    const phases = ['Экономика', 'Военная стратегия', 'Культурное влияние', 'Геополитическое наследие'];
+    const winners = ['A', 'B', 'DRAW', 'A'];
+    const rounds = phases.map((phase, index) => ({
+        phase,
+        summary: `Аварийный локальный раунд (${era}): анализ по фазе "${phase}" временно построен без сети, чтобы дуэль не прерывалась.`,
+        winner: winners[index] || 'DRAW',
+        impact: index === 3 ? 2 : 1
+    }));
+    return {
+        title: `${countryA} vs ${countryB}`,
+        rounds,
+        finalVerdict: `Сеть временно нестабильна, поэтому показан резервный сценарий дуэли. Повтори запуск через 10-20 секунд для полноценного AI-анализа.`,
+        highlight: `Даже в офлайн-режиме можно продолжить матч и сравнить страны по ключевым фазам.`
+    };
 }
 
 // ── TIMELINE BATTLES ──
@@ -1477,6 +1510,38 @@ window.startTimelineBattle = async () => {
     } catch (e) {
         loadingEl.style.display = 'none';
         arenaEl.style.display = 'block';
+        const msg = String(e?.message || '');
+        if (/failed to fetch|network|abort|load failed/i.test(msg)) {
+            const json = buildFallbackBattle(countryA, countryB, era);
+            const cards = json.rounds.map((round, i) => {
+                const winner = String(round.winner || 'DRAW').toUpperCase();
+                const impact = Math.max(1, Math.min(3, Number(round.impact) || 1));
+                const winnerText = winner === 'A' ? countryA : winner === 'B' ? countryB : 'Ничья';
+                const card = document.createElement('div');
+                card.className = `battle-round ${i === 0 ? 'active' : ''}`;
+                card.innerHTML = `
+                    <div class="battle-round-head">
+                        <span class="battle-round-title">Раунд ${i + 1}: ${escHtml(round.phase || 'Фактор')}</span>
+                        <span>Влияние: ${impact}</span>
+                    </div>
+                    <div class="battle-round-body">${mdToHtml(round.summary || '')}</div>
+                    <div class="battle-round-win">Победитель раунда: <strong>${escHtml(winnerText)}</strong></div>
+                `;
+                roundsEl.appendChild(card);
+                return { winner, impact };
+            });
+            const scoreA = cards.reduce((sum, step) => sum + (step.winner === 'A' ? step.impact : 0), 0);
+            const scoreB = cards.reduce((sum, step) => sum + (step.winner === 'B' ? step.impact : 0), 0);
+            scoreAEl.textContent = String(scoreA);
+            scoreBEl.textContent = String(scoreB);
+            statusEl.textContent = 'Режим fallback (временная проблема сети)';
+            summaryEl.innerHTML = `
+                <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:8px;">◆ TIMELINE BATTLE FALLBACK</div>
+                <div style="margin-bottom:8px;">${escHtml(json.finalVerdict)}</div>
+                <div style="color:#a5a5a5;font-size:13px;"><strong>Подсказка:</strong> ${escHtml(json.highlight)}</div>
+            `;
+            return;
+        }
         summaryEl.innerHTML = `<span style="color:var(--danger)">Ошибка: ${escHtml(e.message || 'Не удалось запустить дуэль')}</span>`;
     }
 };
