@@ -1311,3 +1311,389 @@ function stringToColor(str) {
     return colors[Math.abs(hash) % colors.length];
 }
 
+function parseJsonFromModelText(rawText) {
+    const text = String(rawText || '').trim();
+    if (!text) throw new Error('Пустой ответ модели');
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/i);
+    const candidate = fenced ? fenced[1].trim() : text;
+    try {
+        return JSON.parse(candidate);
+    } catch {
+        const start = candidate.indexOf('{');
+        const end = candidate.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return JSON.parse(candidate.slice(start, end + 1));
+        }
+        throw new Error('Не удалось распарсить JSON от модели');
+    }
+}
+
+async function requestGroqJson(prompt, maxTokens = 1300) {
+    const res = await fetch(GROQ_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: 'groq',
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: maxTokens
+        })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    const content = data.choices?.[0]?.message?.content || '';
+    return parseJsonFromModelText(content);
+}
+
+// ── TIMELINE BATTLES ──
+let battleTimer = null;
+
+window.prefillBattle = (a, b, era) => {
+    const aEl = document.getElementById('battle-a');
+    const bEl = document.getElementById('battle-b');
+    const eEl = document.getElementById('battle-era');
+    if (aEl) aEl.value = a;
+    if (bEl) bEl.value = b;
+    if (eEl) eEl.value = era;
+    window.startTimelineBattle();
+};
+
+window.startTimelineBattle = async () => {
+    const countryA = document.getElementById('battle-a')?.value?.trim();
+    const countryB = document.getElementById('battle-b')?.value?.trim();
+    const era = document.getElementById('battle-era')?.value || 'Новое время';
+    if (!countryA || !countryB) return;
+
+    const loadingEl = document.getElementById('battle-loading');
+    const arenaEl = document.getElementById('battle-arena');
+    const roundsEl = document.getElementById('battle-rounds');
+    const summaryEl = document.getElementById('battle-summary');
+    const statusEl = document.getElementById('battle-status');
+    const scoreAEl = document.getElementById('battle-score-a');
+    const scoreBEl = document.getElementById('battle-score-b');
+    const labelAEl = document.getElementById('battle-side-a-label');
+    const labelBEl = document.getElementById('battle-side-b-label');
+    const eraLabelEl = document.getElementById('battle-era-label');
+
+    if (battleTimer) {
+        clearInterval(battleTimer);
+        battleTimer = null;
+    }
+
+    loadingEl.style.display = 'block';
+    arenaEl.style.display = 'none';
+    roundsEl.innerHTML = '';
+    summaryEl.innerHTML = '';
+    scoreAEl.textContent = '0';
+    scoreBEl.textContent = '0';
+    labelAEl.textContent = countryA;
+    labelBEl.textContent = countryB;
+    eraLabelEl.textContent = era;
+
+    try {
+        const json = await requestGroqJson(
+            `Сгенерируй историческую дуэль между "${countryA}" и "${countryB}" в эпохе "${era}".
+Верни СТРОГО JSON:
+{
+  "title": "короткое название дуэли",
+  "rounds": [
+    {
+      "phase": "Экономика/Культура/Влияние/Военная стратегия",
+      "summary": "сравнение 2-3 предложения",
+      "winner": "A или B или DRAW",
+      "impact": 1
+    }
+  ],
+  "finalVerdict": "итог на 3-4 предложения",
+  "highlight": "самый неожиданный факт"
+}
+Условия:
+- rounds ровно 4;
+- impact от 1 до 3;
+- русский язык; без markdown; только JSON.`,
+            1200
+        );
+
+        const rounds = Array.isArray(json?.rounds) ? json.rounds.slice(0, 4) : [];
+        if (rounds.length === 0) throw new Error('Модель не вернула раунды дуэли');
+
+        loadingEl.style.display = 'none';
+        arenaEl.style.display = 'block';
+
+        const cards = rounds.map((round, i) => {
+            const winner = String(round.winner || 'DRAW').toUpperCase();
+            const impact = Math.max(1, Math.min(3, Number(round.impact) || 1));
+            const winnerText = winner === 'A' ? countryA : winner === 'B' ? countryB : 'Ничья';
+            const card = document.createElement('div');
+            card.className = 'battle-round';
+            card.innerHTML = `
+                <div class="battle-round-head">
+                    <span class="battle-round-title">Раунд ${i + 1}: ${escHtml(round.phase || 'Фактор')}</span>
+                    <span>Влияние: ${impact}</span>
+                </div>
+                <div class="battle-round-body">${mdToHtml(round.summary || '')}</div>
+                <div class="battle-round-win">Победитель раунда: <strong>${escHtml(winnerText)}</strong></div>
+            `;
+            roundsEl.appendChild(card);
+            return { card, winner, impact };
+        });
+
+        let index = 0;
+        let scoreA = 0;
+        let scoreB = 0;
+        statusEl.textContent = `Раунд 1 из ${cards.length}`;
+
+        battleTimer = setInterval(() => {
+            if (index >= cards.length) {
+                clearInterval(battleTimer);
+                battleTimer = null;
+                const finalWinner = scoreA === scoreB ? 'Ничья' : (scoreA > scoreB ? countryA : countryB);
+                summaryEl.innerHTML = `
+                    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:8px;">◆ ${escHtml(json.title || 'TIMELINE BATTLE')}</div>
+                    <div style="margin-bottom:10px;"><strong>Итог:</strong> ${escHtml(finalWinner)} (${scoreA}:${scoreB})</div>
+                    <div style="margin-bottom:8px;">${mdToHtml(json.finalVerdict || '')}</div>
+                    <div style="color:#a5a5a5;font-size:13px;"><strong>Неожиданный факт:</strong> ${escHtml(json.highlight || '—')}</div>
+                `;
+                saveSession(
+                    `Battle: ${countryA} vs ${countryB}`,
+                    [
+                        { role: 'user', content: `Timeline Battle: ${countryA} vs ${countryB} (${era})` },
+                        { role: 'assistant', content: `Победитель: ${finalWinner}. Счет: ${scoreA}:${scoreB}. ${json.finalVerdict || ''}` }
+                    ]
+                );
+                statusEl.textContent = 'Дуэль завершена';
+                return;
+            }
+
+            const step = cards[index];
+            step.card.classList.add('active');
+            if (step.winner === 'A') scoreA += step.impact;
+            if (step.winner === 'B') scoreB += step.impact;
+            scoreAEl.textContent = String(scoreA);
+            scoreBEl.textContent = String(scoreB);
+            index += 1;
+            statusEl.textContent = index < cards.length ? `Раунд ${index + 1} из ${cards.length}` : 'Подводим итог...';
+        }, 1100);
+    } catch (e) {
+        loadingEl.style.display = 'none';
+        arenaEl.style.display = 'block';
+        summaryEl.innerHTML = `<span style="color:var(--danger)">Ошибка: ${escHtml(e.message || 'Не удалось запустить дуэль')}</span>`;
+    }
+};
+
+// ── STORY MODE ──
+const storyState = {
+    theme: '',
+    style: '',
+    scenes: [],
+    current: 0,
+    score: 0,
+    choices: []
+};
+
+window.prefillStory = (theme, style, length) => {
+    const themeEl = document.getElementById('story-theme');
+    const styleEl = document.getElementById('story-style');
+    const lengthEl = document.getElementById('story-length');
+    if (themeEl) themeEl.value = theme;
+    if (styleEl) styleEl.value = style;
+    if (lengthEl) lengthEl.value = String(length);
+    window.startStoryMode();
+};
+
+window.startStoryMode = async () => {
+    const theme = document.getElementById('story-theme')?.value?.trim();
+    const style = document.getElementById('story-style')?.value || 'приключение';
+    const length = Math.max(3, Math.min(6, Number(document.getElementById('story-length')?.value) || 4));
+    if (!theme) return;
+
+    const loadingEl = document.getElementById('story-loading');
+    const stageEl = document.getElementById('story-stage');
+    const finaleEl = document.getElementById('story-finale');
+    loadingEl.style.display = 'block';
+    stageEl.style.display = 'none';
+    finaleEl.style.display = 'none';
+
+    try {
+        const json = await requestGroqJson(
+            `Сгенерируй интерактивный исторический тур.
+Тема: "${theme}".
+Стиль повествования: "${style}".
+Количество сцен: ${length}.
+Верни СТРОГО JSON:
+{
+  "intro": "краткое вступление",
+  "scenes": [
+    {
+      "title": "название сцены",
+      "year": "год или период",
+      "location": "локация",
+      "narrative": "описание 3-4 предложения",
+      "question": "вопрос игроку",
+      "options": ["вариант 1","вариант 2","вариант 3"],
+      "correctIndex": 0,
+      "effect": "что дает правильный выбор"
+    }
+  ],
+  "endingHint": "общая мысль финала"
+}
+Условия:
+- scenes ровно ${length};
+- correctIndex от 0 до 2;
+- текст только на русском;
+- без markdown; только JSON.`,
+            1800
+        );
+
+        const scenes = Array.isArray(json?.scenes) ? json.scenes : [];
+        if (scenes.length === 0) throw new Error('Не удалось сгенерировать сцены');
+
+        storyState.theme = theme;
+        storyState.style = style;
+        storyState.scenes = scenes.slice(0, length).map((scene) => ({
+            title: scene.title || 'Сцена',
+            year: scene.year || 'Неизвестно',
+            location: scene.location || 'Неизвестно',
+            narrative: scene.narrative || '',
+            question: scene.question || 'Какой путь ты выбираешь?',
+            options: Array.isArray(scene.options) ? scene.options.slice(0, 3) : ['Вариант 1', 'Вариант 2', 'Вариант 3'],
+            correctIndex: Math.max(0, Math.min(2, Number(scene.correctIndex) || 0)),
+            effect: scene.effect || 'Ты получаешь тактическое преимущество.'
+        }));
+        storyState.current = 0;
+        storyState.score = 0;
+        storyState.choices = [];
+        storyState.intro = json.intro || '';
+        storyState.endingHint = json.endingHint || '';
+
+        loadingEl.style.display = 'none';
+        stageEl.style.display = 'block';
+        renderStoryScene();
+    } catch (e) {
+        loadingEl.style.display = 'none';
+        stageEl.style.display = 'block';
+        document.getElementById('story-finale').style.display = 'block';
+        document.getElementById('story-finale').innerHTML = `<span style="color:var(--danger)">Ошибка: ${escHtml(e.message || 'Не удалось создать Story Mode')}</span>`;
+    }
+};
+
+function renderStoryScene() {
+    const scene = storyState.scenes[storyState.current];
+    if (!scene) return;
+
+    const total = storyState.scenes.length;
+    const step = storyState.current + 1;
+    const pct = Math.round((step / total) * 100);
+    document.getElementById('story-progress-title').textContent = scene.title;
+    document.getElementById('story-progress-count').textContent = `${step}/${total}`;
+    document.getElementById('story-progress-fill').style.width = `${pct}%`;
+    document.getElementById('story-scene-meta').textContent = `${scene.year} · ${scene.location}`;
+    document.getElementById('story-scene-title').textContent = scene.title;
+    document.getElementById('story-scene-text').innerHTML = mdToHtml(`${storyState.current === 0 && storyState.intro ? `${storyState.intro}\n\n` : ''}${scene.narrative}\n\n**Выбор:** ${scene.question}`);
+
+    const optionsEl = document.getElementById('story-options');
+    const feedbackEl = document.getElementById('story-feedback');
+    const nextBtn = document.getElementById('story-next-btn');
+    optionsEl.innerHTML = '';
+    feedbackEl.style.display = 'none';
+    feedbackEl.textContent = '';
+    nextBtn.style.display = 'none';
+
+    scene.options.forEach((opt, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'story-option';
+        btn.textContent = opt;
+        btn.onclick = () => handleStoryChoice(index);
+        optionsEl.appendChild(btn);
+    });
+}
+
+function handleStoryChoice(selectedIndex) {
+    const scene = storyState.scenes[storyState.current];
+    if (!scene) return;
+    const optionsEl = document.getElementById('story-options');
+    const feedbackEl = document.getElementById('story-feedback');
+    const nextBtn = document.getElementById('story-next-btn');
+    const buttons = [...optionsEl.querySelectorAll('.story-option')];
+    const correct = selectedIndex === scene.correctIndex;
+
+    buttons.forEach((btn, idx) => {
+        btn.disabled = true;
+        if (idx === scene.correctIndex) btn.classList.add('correct');
+        if (idx === selectedIndex && !correct) btn.classList.add('wrong');
+    });
+
+    if (correct) storyState.score += 1;
+    storyState.choices.push({
+        scene: scene.title,
+        selected: scene.options[selectedIndex],
+        correct,
+        effect: scene.effect
+    });
+
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = correct
+        ? `✅ Отличный выбор. ${escHtml(scene.effect)}`
+        : `❌ Не самый сильный ход. Оптимальный выбор был: <strong>${escHtml(scene.options[scene.correctIndex])}</strong>. ${escHtml(scene.effect)}`;
+
+    nextBtn.textContent = storyState.current + 1 >= storyState.scenes.length ? 'Завершить тур →' : 'Следующая сцена →';
+    nextBtn.style.display = 'inline-block';
+}
+
+window.nextStoryScene = async () => {
+    storyState.current += 1;
+    if (storyState.current < storyState.scenes.length) {
+        renderStoryScene();
+        return;
+    }
+
+    const finaleEl = document.getElementById('story-finale');
+    const total = storyState.scenes.length;
+    const score = storyState.score;
+    finaleEl.style.display = 'block';
+    finaleEl.innerHTML = 'Формирую финальный отчёт тура...';
+
+    try {
+        const choicesText = storyState.choices
+            .map((choice, index) => `${index + 1}. ${choice.scene}: ${choice.selected} (${choice.correct ? 'верно' : 'неверно'})`)
+            .join('\n');
+        const finalJson = await requestGroqJson(
+            `Создай финал исторического интерактивного тура.
+Тема: "${storyState.theme}", стиль: "${storyState.style}".
+Счёт пользователя: ${score} из ${total}.
+Выборы:
+${choicesText}
+Верни СТРОГО JSON:
+{
+  "title": "короткий заголовок финала",
+  "debrief": "разбор в 3-4 предложениях",
+  "nextMission": "следующая миссия одной фразой"
+}`,
+            650
+        );
+
+        finaleEl.innerHTML = `
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:8px;">◆ STORY REPORT</div>
+            <h3 style="color:var(--green);margin-bottom:10px;">${escHtml(finalJson.title || 'Финал тура')}</h3>
+            <p style="margin-bottom:10px;">${mdToHtml(finalJson.debrief || '')}</p>
+            <p style="color:#b8b8b8;"><strong>Следующая миссия:</strong> ${escHtml(finalJson.nextMission || storyState.endingHint || 'Попробуй новый маршрут с другой эпохой.')}</p>
+            <p style="margin-top:10px;"><strong>Итоговый счёт:</strong> ${score}/${total}</p>
+        `;
+
+        saveSession(
+            `Story: ${storyState.theme}`,
+            [
+                { role: 'user', content: `Story Mode: ${storyState.theme} (${storyState.style})` },
+                { role: 'assistant', content: `Счёт ${score}/${total}. ${finalJson.debrief || ''}` }
+            ]
+        );
+    } catch (e) {
+        finaleEl.innerHTML = `
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--green);letter-spacing:2px;margin-bottom:8px;">◆ STORY REPORT</div>
+            <p><strong>Счёт:</strong> ${score}/${total}</p>
+            <p style="margin-top:8px;color:#b8b8b8;">${escHtml(storyState.endingHint || 'Тур завершён. Попробуй другой стиль и другую эпоху, чтобы открыть новую ветку истории.')}</p>
+            <p style="margin-top:8px;color:var(--danger);font-size:13px;">${escHtml(e.message || '')}</p>
+        `;
+    }
+};
+
