@@ -69,6 +69,46 @@
         .compare-stat { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
         .compare-stat:last-child { border-bottom:none; }
         .flag-big { font-size:36px; margin-bottom:8px; display:block; }
+        .battle-controls, .story-controls { display:grid; grid-template-columns: 1fr auto 1fr 1fr auto; gap:10px; margin-bottom:12px; }
+        .story-controls { grid-template-columns: 1.4fr 1fr 1fr auto; }
+        .battle-controls input, .battle-controls select, .story-controls input, .story-controls select {
+            background: var(--card-bg); border:1px solid var(--border); border-radius:10px; color:var(--text); padding:12px 14px; font-size:14px; outline:none; font-family:'Manrope',sans-serif;
+        }
+        .battle-controls button, .story-controls button, #story-next-btn {
+            background: var(--green); color:#000; border:none; border-radius:10px; padding:12px 18px; font-size:14px; font-weight:800; cursor:pointer; font-family:'Manrope',sans-serif;
+        }
+        .battle-vs { align-self:center; justify-self:center; color:var(--muted); font-family:'Space Mono',monospace; letter-spacing:1px; }
+        .mode-loading { background:var(--card-bg); border:1px dashed var(--border); border-radius:12px; padding:16px; font-size:13px; color:var(--muted); text-align:center; }
+        .battle-scoreboard { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; margin-bottom:14px; align-items:center; }
+        .battle-side { background:linear-gradient(145deg,#111,#191919); border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; }
+        .battle-side-label { color:#a7a7a7; font-size:12px; margin-bottom:4px; }
+        .battle-side-score { font-family:'Space Mono',monospace; font-size:30px; color:var(--green); }
+        .battle-center { text-align:center; }
+        .battle-era { font-size:12px; color:#a7a7a7; margin-bottom:4px; text-transform:uppercase; letter-spacing:1px; }
+        .battle-status { font-family:'Space Mono',monospace; color:var(--green); font-size:12px; letter-spacing:1px; }
+        .battle-rounds { display:grid; gap:10px; }
+        .battle-round { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:14px; opacity:.45; transform:translateY(4px); transition:.25s; }
+        .battle-round.active { opacity:1; transform:translateY(0); border-color:#335a33; }
+        .battle-round-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:8px; font-size:12px; color:#9a9a9a; }
+        .battle-round-title { color:var(--green); font-family:'Space Mono',monospace; letter-spacing:1px; }
+        .battle-round-body { font-size:14px; line-height:1.7; color:var(--text); }
+        .battle-round-win { margin-top:9px; font-size:13px; color:#b9b9b9; }
+        .battle-summary { margin-top:14px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:16px; font-size:14px; line-height:1.8; }
+        .story-progress-wrap { margin-bottom:12px; }
+        .story-progress-head { display:flex; justify-content:space-between; font-size:12px; color:#aaa; margin-bottom:6px; }
+        .story-progress-track { height:8px; border-radius:999px; background:#1b1b1b; border:1px solid #2c2c2c; overflow:hidden; }
+        .story-progress-fill { height:100%; width:0; background:linear-gradient(90deg,#00e676,#58ff9e); transition:width .2s; }
+        .story-scene-card { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:20px; }
+        .story-scene-meta { font-family:'Space Mono',monospace; font-size:11px; color:#8b8b8b; letter-spacing:1px; margin-bottom:8px; }
+        .story-scene-card h3 { color:var(--green); margin-bottom:10px; font-size:22px; }
+        .story-scene-card p { color:var(--text); line-height:1.8; margin-bottom:14px; }
+        .story-options { display:grid; gap:8px; margin-bottom:10px; }
+        .story-option { background:#111; border:1px solid #2d2d2d; border-radius:10px; color:var(--text); padding:12px 14px; cursor:pointer; font-size:14px; text-align:left; }
+        .story-option:hover { border-color:#4f7a4f; }
+        .story-option.correct { border-color:#00e676; color:#00e676; background:#0a220a; }
+        .story-option.wrong { border-color:#ff4444; color:#ff8f8f; background:#260d0d; }
+        .story-feedback { border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; color:#ddd; font-size:13px; line-height:1.7; }
+        .story-finale { margin-top:12px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:18px; font-size:14px; line-height:1.8; }
 
         main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         .section { display: none; flex: 1; flex-direction: column; overflow: hidden; }
@@ -202,6 +242,8 @@
             .quiz-option { padding: 16px; font-size: 16px; min-height: 48px; margin: 8px 0; }
             #quiz-next-btn { min-height: 48px; font-size: 15px; }
             #quiz-topic { font-size: 16px; min-height: 48px; padding: 14px; }
+            .battle-controls, .story-controls { grid-template-columns:1fr; }
+            .battle-vs { display:none; }
         }
 
         /* Очень маленькие экраны (портрет и очень узкие) */
