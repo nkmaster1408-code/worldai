@@ -387,9 +387,20 @@ async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (!res.ok) {
+        let details = '';
+        try {
+            if (contentType.includes('application/json')) {
+                const errJson = await res.json();
+                details = errJson?.message || errJson?.error || '';
+            } else {
+                details = (await res.text()).trim();
+            }
+        } catch {}
+        throw new Error(details ? `HTTP ${res.status}: ${details}` : `HTTP ${res.status}`);
+    }
+
     if (res.body && contentType.includes('text/event-stream')) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1171,10 +1182,23 @@ window.loadYear = async (year) => {
     loading.style.display = 'block';
     if (historicalLayer) { map.removeLayer(historicalLayer); historicalLayer = null; }
     try {
-        const url = `https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_${snapped}.geojson`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Not found');
-        const data = await res.json();
+        const urls = [
+            `https://cdn.jsdelivr.net/gh/aourednik/historical-basemaps@master/geojson/world_${snapped}.geojson`,
+            `https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_${snapped}.geojson`
+        ];
+        let data = null;
+        let lastErr = null;
+        for (const url of urls) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                data = await res.json();
+                break;
+            } catch (e) {
+                lastErr = e;
+            }
+        }
+        if (!data) throw lastErr || new Error('Failed to load map data');
         historicalLayer = L.geoJSON(data, {
             style: () => ({
                 fillColor: '#0a1a0a',
@@ -1195,7 +1219,7 @@ window.loadYear = async (year) => {
         }).addTo(map);
         addCountryLabels(data, map);
     } catch(e) {
-        console.error(e);
+        console.error('Map load error:', e);
     }
     loading.style.display = 'none';
 };
