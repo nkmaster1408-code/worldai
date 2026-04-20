@@ -620,7 +620,7 @@ async function sendMessage() {
         if (mdl.provider === 'groq') {
             reply = await fetchReplyWithStreaming(
                 GROQ_WORKER,
-                { model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                { provider: 'groq', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
                 'openai',
                 onDelta
             );
@@ -965,6 +965,7 @@ window.compareCountries = async () => {
         fetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                provider: 'groq',
                 model: 'llama-3.3-70b-versatile',
                 messages: [{ role: 'user', content: `Сравни две страны/региона: "${a}" и "${b}". Используй разделы: ## История, ## Культура, ## Экономика, ## Политика, ## Интересные сходства и различия. Пиши на русском языке, подробно и аналитически. Используй **жирный** для ключевых фактов.` }],
                 max_tokens: 2048
@@ -1028,8 +1029,9 @@ window.startQuiz = async () => {
         const res = await fetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                provider: 'groq',
                 model: 'llama-3.3-70b-versatile',
-                messages: [{ role: 'user', content: `Создай один вопрос для исторического квиза на тему: "${topic}". 
+                messages: [{ role: 'user', content: `Создай один вопрос для исторического квиза на тему: "${topic}".
 Ответь ТОЛЬКО в формате JSON (без markdown, без \`\`\`):
 {
   "question": "вопрос",
@@ -1106,6 +1108,7 @@ window.searchCountry = async () => {
         const res = await fetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                provider: 'groq',
                 model: 'llama-3.3-70b-versatile',
                 messages: [{ role: 'user', content: `Расскажи подробную историю страны: ${country}. Включи: древнюю историю, важные события, известных правителей, современность. Используй ## для разделов, **жирный** для важных дат и имён. Пиши на русском языке, подробно и интересно.` }],
                 max_tokens: 2048
@@ -1255,6 +1258,7 @@ async function showCountryHistory(countryName, latlng) {
         const res = await fetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                provider: 'groq',
                 model: 'llama-3.3-70b-versatile',
                 messages: [{ role: 'user', content: 'Кратко расскажи историю страны или региона "' + countryName + '" — 4-5 предложений. Самые интересные исторические факты. Пиши на русском языке.' }],
                 max_tokens: 512
