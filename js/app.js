@@ -593,12 +593,19 @@ async function generateImageFromPrompt(prompt) {
         body: JSON.stringify({ prompt, size: '1024x1024' })
     });
     const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    if (!res.ok || data.error) {
+        const msg = String(data.message || data.error || `HTTP ${res.status}`);
+        if (/quota|billing hard limit|429/i.test(msg)) {
+            // Free fallback when OpenAI billing is exhausted.
+            return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true&safe=true`;
+        }
+        throw new Error(msg);
+    }
     if (data.imageUrl) return data.imageUrl;
     if (data.imageBase64) return `data:${data.mimeType || 'image/png'};base64,${data.imageBase64}`;
     throw new Error('Не удалось получить изображение');
 }
-async function analyzeDocumentWithAI(question, modelName) {
+async function analyzeDocumentWithAI(question, modelName, providerName = 'openai') {
     if (!pendingAttachment) throw new Error('Сначала прикрепи документ');
     const res = await fetch(DOC_ANALYZE_WORKER, {
         method: 'POST',
@@ -606,6 +613,7 @@ async function analyzeDocumentWithAI(question, modelName) {
         body: JSON.stringify({
             question,
             model: modelName || 'gpt-4o-mini',
+            provider: providerName,
             fileName: pendingAttachment.name,
             mimeType: pendingAttachment.type,
             base64: pendingAttachment.base64
@@ -614,6 +622,14 @@ async function analyzeDocumentWithAI(question, modelName) {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.message || data.error || `HTTP ${res.status}`);
     return data.choices?.[0]?.message?.content || data.answer || '';
+}
+
+function buildFastContext(history, limit = 10) {
+    const recent = history.slice(-limit);
+    return recent.map((m) => ({
+        ...m,
+        content: String(m.content || '').slice(0, 1800)
+    }));
 }
 
 // ── SEND ──
@@ -645,7 +661,11 @@ async function sendMessage() {
         if (userProfile.tone === 'friendly') systemPrompt += ' Стиль общения: дружелюбно и поддерживающе.';
 
         const mdl = MODELS[currentModel];
-        const openaiModelForDoc = (mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini';
+        const isImageAttachment = hasAttachment && /^image\//i.test(String(pendingAttachment?.type || ''));
+        const docProvider = mdl?.provider === 'groq' ? 'groq' : 'openai';
+        const docModel = docProvider === 'groq'
+            ? (isImageAttachment ? 'meta-llama/llama-4-scout-17b-16e-instruct' : (mdl?.apiModel || 'llama-3.3-70b-versatile'))
+            : ((mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini');
 
         const shouldGenerateImage = imageModeEnabled || (!hasAttachment && isLikelyImagePrompt(text));
         if (shouldGenerateImage) {
@@ -663,7 +683,7 @@ async function sendMessage() {
 
         if (hasAttachment) {
             const question = text || 'Сделай краткое резюме документа и выдели ключевые факты.';
-            const docReply = await analyzeDocumentWithAI(question, openaiModelForDoc);
+            const docReply = await analyzeDocumentWithAI(question, docModel, docProvider);
             if (!docReply) throw new Error('Пустой ответ по документу');
             removeTyping();
             appendMessage('ai', docReply);
@@ -674,6 +694,7 @@ async function sendMessage() {
             return;
         }
 
+        const contextMessages = buildFastContext(chatHistory, 10);
         let live = null;
         let liveText = '';
         const allowCjk = shouldAllowCjk(userTextForHistory);
@@ -689,14 +710,14 @@ async function sendMessage() {
         if (mdl.provider === 'groq') {
             reply = await fetchReplyWithStreaming(
                 GROQ_WORKER,
-                { provider: 'groq', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                { provider: 'groq', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...contextMessages], max_tokens: 900, stream: true },
                 'openai',
                 onDelta
             );
         } else if (mdl.provider === 'openai') {
             reply = await fetchReplyWithStreaming(
                 OPENAI_WORKER,
-                { provider: 'openai', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...chatHistory], max_tokens: 2048, stream: true },
+                { provider: 'openai', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...contextMessages], max_tokens: 900, stream: true },
                 'openai',
                 onDelta
             );
