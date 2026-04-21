@@ -450,9 +450,42 @@ function stripUnexpectedCjk(text = '') {
     return String(text || '').replace(CJK_RE, '');
 }
 
+function shouldKeepMathMarkup(userText = '') {
+    const t = String(userText || '').toLowerCase();
+    return /(latex|тех|формат latex|markdown|mark down|формула в latex|выведи в latex)/i.test(t);
+}
+
+function normalizeMathMarkup(text = '') {
+    let out = String(text || '');
+    out = out.replace(/\\\[((?:.|\n)*?)\\\]/g, '$1');
+    out = out.replace(/\\\(((?:.|\n)*?)\\\)/g, '$1');
+    out = out.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
+    out = out.replace(/\$([^$\n]+)\$/g, '$1');
+    out = out.replace(/\\textbf\{([^}]*)\}/g, '$1');
+    out = out.replace(/\\text\{([^}]*)\}/g, '$1');
+
+    // Expand simple fractions iteratively: \frac{a}{b} -> (a)/(b)
+    for (let i = 0; i < 6; i += 1) {
+        const next = out.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
+        if (next === out) break;
+        out = next;
+    }
+
+    out = out.replace(/\\cdot/g, '*');
+    out = out.replace(/\\times/g, '×');
+    out = out.replace(/\\lg/g, 'lg');
+    out = out.replace(/\\log/g, 'log');
+    out = out.replace(/####\s*/g, '');
+    out = out.replace(/###\s*/g, '');
+    out = out.replace(/\n{3,}/g, '\n\n');
+    return out.trim();
+}
+
 function sanitizeAiText(text = '', userContextText = '') {
-    if (shouldAllowCjk(userContextText)) return String(text || '');
-    return stripUnexpectedCjk(text);
+    let out = String(text || '');
+    if (!shouldAllowCjk(userContextText)) out = stripUnexpectedCjk(out);
+    if (!shouldKeepMathMarkup(userContextText)) out = normalizeMathMarkup(out);
+    return out;
 }
 async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
     const res = await fetch(url, {
@@ -674,7 +707,7 @@ async function sendMessage() {
     chatHistory.push({ role: 'user', content: userTextForHistory });
     appendTyping();
     try {
-        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. Не используй LaTeX-разметку вида \\[ \\], \\( \\), \\frac и т.п.; формулы и шаги пиши обычным текстом. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
+        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. Не используй LaTeX-разметку вида \\[ \\], \\( \\), \\frac и т.п.; формулы и шаги пиши обычным текстом. Не используй markdown-разметку без явной просьбы пользователя. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
         if (userProfile.name) systemPrompt += ' Имя пользователя: ' + userProfile.name + '. Обращайся к нему по имени.';
         if (userProfile.age) systemPrompt += ' Возраст пользователя: ' + userProfile.age + '.';
         if (userProfile.about) systemPrompt += ' О пользователе: ' + userProfile.about + '.';
@@ -763,10 +796,14 @@ async function sendMessage() {
         }
 
         if (generationId !== activeGenerationId) return;
-        if (!allowCjk) reply = stripUnexpectedCjk(reply);
+        reply = sanitizeAiText(reply, userTextForHistory);
         if (!reply) throw new Error('Пустой ответ от модели');
         removeTyping();
-        if (!live) appendMessage('ai', reply);
+        if (live) {
+            updateAiLiveMessage(live.textEl, reply);
+        } else {
+            appendMessage('ai', reply);
+        }
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
         await saveSession(firstUser?.content || userTextForHistory, chatHistory);
