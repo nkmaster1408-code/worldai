@@ -316,6 +316,8 @@ function appendMessage(type, text, animate = true) {
         const msgId = 'msg-' + Date.now();
         const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
         div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text" id="${msgId}">${mdToHtml(text)}</div><div class="msg-actions"><button class="copy-btn" onclick="copyMsg('${msgId}')">📋 Копировать</button><button class="speak-btn" onclick="speakMsg('${msgId}', this)">🔊 Озвучить</button></div>`;
+        const textEl = div.querySelector(`#${msgId}`);
+        if (textEl) scheduleMathTypeset(textEl);
     }
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight; return div;
 }
@@ -401,11 +403,14 @@ function appendAiLiveMessage(initialText = '', animate = true) {
     div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text" id="${msgId}">${mdToHtml(initialText)}</div><div class="msg-actions"><button class="copy-btn" onclick="copyMsg('${msgId}')">📋 Копировать</button><button class="speak-btn" onclick="speakMsg('${msgId}', this)">🔊 Озвучить</button></div>`;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
-    return { wrapper: div, textEl: document.getElementById(msgId), msgId };
+    const textEl = document.getElementById(msgId);
+    if (textEl) scheduleMathTypeset(textEl);
+    return { wrapper: div, textEl, msgId };
 }
 function updateAiLiveMessage(textEl, text) {
     if (!textEl) return;
     textEl.innerHTML = mdToHtml(text);
+    scheduleMathTypeset(textEl);
     const msgs = document.getElementById('messages');
     msgs.scrollTop = msgs.scrollHeight;
 }
@@ -452,7 +457,12 @@ function stripUnexpectedCjk(text = '') {
 
 function shouldKeepMathMarkup(userText = '') {
     const t = String(userText || '').toLowerCase();
-    return /(latex|тех|формат latex|markdown|mark down|формула в latex|выведи в latex)/i.test(t);
+    return /(latex|тех|формат latex|markdown|mark down|формула в latex|выведи в latex|логарифм|уравнен|алгебр|математ|дроб|степен)/i.test(t);
+}
+
+function hasLatexMarkers(text = '') {
+    const t = String(text || '');
+    return /\\frac|\\sqrt|\\log|\\lg|\\begin\{|\\\(|\\\[|\$\$|\$[^$\n]+\$|_\{|\^\{/.test(t);
 }
 
 function normalizeMathMarkup(text = '') {
@@ -499,8 +509,18 @@ function normalizeMathMarkup(text = '') {
 function sanitizeAiText(text = '', userContextText = '') {
     let out = String(text || '');
     if (!shouldAllowCjk(userContextText)) out = stripUnexpectedCjk(out);
-    if (!shouldKeepMathMarkup(userContextText)) out = normalizeMathMarkup(out);
+    const keepMath = shouldKeepMathMarkup(userContextText) || hasLatexMarkers(out);
+    if (!keepMath) out = normalizeMathMarkup(out);
     return out;
+}
+
+let mathTypesetTimer = null;
+function scheduleMathTypeset(root) {
+    if (!root || !window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
+    if (mathTypesetTimer) clearTimeout(mathTypesetTimer);
+    mathTypesetTimer = setTimeout(() => {
+        window.MathJax.typesetPromise([root]).catch(() => {});
+    }, 120);
 }
 async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
     const res = await fetch(url, {
