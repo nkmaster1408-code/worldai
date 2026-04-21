@@ -75,6 +75,7 @@ let chatHistory = [];
 let sessions = [];
 let currentSessionId = null;
 let isLoading = false;
+let activeGenerationId = 0;
 let map = null;
 let imageModeEnabled = false;
 let pendingAttachment = null;
@@ -211,6 +212,22 @@ function applySectionMotion(sectionId) {
     }, 760);
 }
 
+function interruptCurrentGeneration() {
+    activeGenerationId += 1;
+    isLoading = false;
+    removeTyping();
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.disabled = false;
+}
+
+function finishSendState(generationId, inputEl) {
+    if (generationId !== activeGenerationId) return;
+    isLoading = false;
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.disabled = false;
+    if (inputEl) inputEl.focus();
+}
+
 // ── TABS ──
 window.setTab = (sectionId, navId) => {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -224,6 +241,7 @@ window.setTab = (sectionId, navId) => {
 
 // ── NEW CHAT ──
 window.newChat = () => {
+    interruptCurrentGeneration();
     chatHistory = []; currentSessionId = null;
     document.getElementById('messages').innerHTML = `
         <div class="welcome" id="welcome-screen">
@@ -263,6 +281,7 @@ function renderHistory() {
     });
 }
 function loadSession(id) {
+    interruptCurrentGeneration();
     const s = sessions.find(x => x.id === id);
     if (!s) return;
     currentSessionId = id; chatHistory = s.messages;
@@ -641,6 +660,7 @@ function buildFastContext(history, limit = 10) {
 window.quickSend = (text) => { document.getElementById('user-input').value = text; sendMessage(); };
 async function sendMessage() {
     if (isLoading || !currentUser) return;
+    const generationId = ++activeGenerationId;
     const input = document.getElementById('user-input');
     const text = input.value.trim();
     const hasAttachment = !!pendingAttachment;
@@ -654,7 +674,7 @@ async function sendMessage() {
     chatHistory.push({ role: 'user', content: userTextForHistory });
     appendTyping();
     try {
-        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
+        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. Не используй LaTeX-разметку вида \\[ \\], \\( \\), \\frac и т.п.; формулы и шаги пиши обычным текстом. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
         if (userProfile.name) systemPrompt += ' Имя пользователя: ' + userProfile.name + '. Обращайся к нему по имени.';
         if (userProfile.age) systemPrompt += ' Возраст пользователя: ' + userProfile.age + '.';
         if (userProfile.about) systemPrompt += ' О пользователе: ' + userProfile.about + '.';
@@ -677,18 +697,21 @@ async function sendMessage() {
             if (!text) throw new Error('Опиши, какое изображение нужно сгенерировать.');
             if (hasAttachment) throw new Error('Для генерации изображения убери прикреплённый файл.');
             const imageUrl = await generateImageFromPrompt(text);
+            if (generationId !== activeGenerationId) return;
             removeTyping();
             appendImageMessage(imageUrl, text);
             chatHistory.push({ role: 'assistant', content: `[Изображение сгенерировано по запросу: ${text}]` });
             const firstUserImg = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserImg?.content || text, chatHistory);
             setImageMode(false);
+            finishSendState(generationId, input);
             return;
         }
 
         if (hasAttachment) {
             const question = text || 'Сделай краткое резюме документа и выдели ключевые факты.';
             const docReply = await analyzeDocumentWithAI(question, docModel, docProvider);
+            if (generationId !== activeGenerationId) return;
             if (!docReply) throw new Error('Пустой ответ по документу');
             const safeDocReply = sanitizeAiText(docReply, question);
             removeTyping();
@@ -697,6 +720,7 @@ async function sendMessage() {
             const firstUserDoc = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserDoc?.content || userTextForHistory, chatHistory);
             window.clearAttachment();
+            finishSendState(generationId, input);
             return;
         }
 
@@ -705,6 +729,7 @@ async function sendMessage() {
         let liveText = '';
         const allowCjk = shouldAllowCjk(userTextForHistory);
         const onDelta = (delta) => {
+            if (generationId !== activeGenerationId) return;
             if (!delta) return;
             if (!allowCjk) delta = stripUnexpectedCjk(delta);
             if (!live) { removeTyping(); live = appendAiLiveMessage(''); }
@@ -737,6 +762,7 @@ async function sendMessage() {
             );
         }
 
+        if (generationId !== activeGenerationId) return;
         if (!allowCjk) reply = stripUnexpectedCjk(reply);
         if (!reply) throw new Error('Пустой ответ от модели');
         removeTyping();
@@ -744,8 +770,12 @@ async function sendMessage() {
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
         await saveSession(firstUser?.content || userTextForHistory, chatHistory);
-    } catch (err) { removeTyping(); appendMessage('ai', `❌ **Ошибка:** ${err.message}`); }
-    isLoading = false; document.getElementById('send-btn').disabled = false; input.focus();
+    } catch (err) {
+        if (generationId !== activeGenerationId) return;
+        removeTyping();
+        appendMessage('ai', `❌ **Ошибка:** ${err.message}`);
+    }
+    finishSendState(generationId, input);
 }
 window.sendMessage = sendMessage;
 window.handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
