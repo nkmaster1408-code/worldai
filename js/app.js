@@ -430,6 +430,11 @@ function shouldAllowCjk(userText = '') {
 function stripUnexpectedCjk(text = '') {
     return String(text || '').replace(CJK_RE, '');
 }
+
+function sanitizeAiText(text = '', userContextText = '') {
+    if (shouldAllowCjk(userContextText)) return String(text || '');
+    return stripUnexpectedCjk(text);
+}
 async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
     const res = await fetch(url, {
         method: 'POST',
@@ -685,9 +690,10 @@ async function sendMessage() {
             const question = text || 'Сделай краткое резюме документа и выдели ключевые факты.';
             const docReply = await analyzeDocumentWithAI(question, docModel, docProvider);
             if (!docReply) throw new Error('Пустой ответ по документу');
+            const safeDocReply = sanitizeAiText(docReply, question);
             removeTyping();
-            appendMessage('ai', docReply);
-            chatHistory.push({ role: 'assistant', content: docReply });
+            appendMessage('ai', safeDocReply);
+            chatHistory.push({ role: 'assistant', content: safeDocReply });
             const firstUserDoc = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserDoc?.content || userTextForHistory, chatHistory);
             window.clearAttachment();
@@ -1170,7 +1176,7 @@ window.compareCountries = async () => {
     try {
         const data = await aiRes.json();
         if (data.error) throw new Error(data.error.message);
-        const text = data.choices?.[0]?.message?.content || '';
+        const text = sanitizeAiText(data.choices?.[0]?.message?.content || '', `${a} ${b}`);
         result.style.display = 'block';
         document.getElementById('compare-result-text').innerHTML = mdToHtml(text);
     } catch(e) {
@@ -1289,7 +1295,7 @@ window.searchCountry = async () => {
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-        const text = data.choices?.[0]?.message?.content || 'Нет данных';
+        const text = sanitizeAiText(data.choices?.[0]?.message?.content || 'Нет данных', country);
         loading.style.display = 'none';
         result.style.display = 'block';
         resultText.innerHTML = mdToHtml(text);
@@ -1452,7 +1458,7 @@ async function showCountryHistory(countryName, latlng) {
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-        const text = (data.choices?.[0]?.message?.content || 'Нет данных')
+        const text = sanitizeAiText((data.choices?.[0]?.message?.content || 'Нет данных'), countryName)
             .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
         const html = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px;max-width:340px">'
             + '<div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div>'
