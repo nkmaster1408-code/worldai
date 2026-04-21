@@ -461,6 +461,10 @@ function normalizeMathMarkup(text = '') {
     out = out.replace(/\\\(((?:.|\n)*?)\\\)/g, '$1');
     out = out.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
     out = out.replace(/\$([^$\n]+)\$/g, '$1');
+    out = out.replace(/\\begin\{[^}]+\}/g, '');
+    out = out.replace(/\\end\{[^}]+\}/g, '');
+    out = out.replace(/\\left/g, '');
+    out = out.replace(/\\right/g, '');
     out = out.replace(/\\textbf\{([^}]*)\}/g, '$1');
     out = out.replace(/\\text\{([^}]*)\}/g, '$1');
 
@@ -473,10 +477,21 @@ function normalizeMathMarkup(text = '') {
 
     out = out.replace(/\\cdot/g, '*');
     out = out.replace(/\\times/g, '×');
+    out = out.replace(/\\approx/g, '≈');
+    out = out.replace(/\\neq/g, '≠');
+    out = out.replace(/\\leq/g, '≤');
+    out = out.replace(/\\geq/g, '≥');
     out = out.replace(/\\lg/g, 'lg');
     out = out.replace(/\\log/g, 'log');
+    out = out.replace(/_\{([^}]*)\}/g, '_$1');
+    out = out.replace(/\^\{([^}]*)\}/g, '^$1');
+    out = out.replace(/\{([0-9a-zA-Zа-яА-Я_+\-*/=.,:;!?()\s]+)\}/g, '$1');
+    out = out.replace(/\\([a-zA-Z]+)/g, '$1');
     out = out.replace(/####\s*/g, '');
     out = out.replace(/###\s*/g, '');
+    out = out.replace(/\*\*(.*?)\*\*/g, '$1');
+    out = out.replace(/^\s*[-*]\s+/gm, '• ');
+    out = out.replace(/\n[ \t]+\n/g, '\n\n');
     out = out.replace(/\n{3,}/g, '\n\n');
     return out.trim();
 }
