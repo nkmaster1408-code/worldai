@@ -419,6 +419,17 @@ function extractDeltaFromEvent(obj, provider) {
     }
     return obj?.choices?.[0]?.delta?.content || obj?.choices?.[0]?.message?.content || '';
 }
+
+const CJK_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g;
+
+function shouldAllowCjk(userText = '') {
+    const t = String(userText || '').toLowerCase();
+    return /(китай|китайск|япон|корей|иероглиф|переведи|translate|chinese|japanese|korean|hanzi|kanji)/i.test(t);
+}
+
+function stripUnexpectedCjk(text = '') {
+    return String(text || '').replace(CJK_RE, '');
+}
 async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
     const res = await fetch(url, {
         method: 'POST',
@@ -622,7 +633,7 @@ async function sendMessage() {
     chatHistory.push({ role: 'user', content: userTextForHistory });
     appendTyping();
     try {
-        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай на русском языке. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
+        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. Используй форматирование: **жирный** для важного, ## для заголовков, - для списков. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
         if (userProfile.name) systemPrompt += ' Имя пользователя: ' + userProfile.name + '. Обращайся к нему по имени.';
         if (userProfile.age) systemPrompt += ' Возраст пользователя: ' + userProfile.age + '.';
         if (userProfile.about) systemPrompt += ' О пользователе: ' + userProfile.about + '.';
@@ -665,8 +676,10 @@ async function sendMessage() {
 
         let live = null;
         let liveText = '';
+        const allowCjk = shouldAllowCjk(userTextForHistory);
         const onDelta = (delta) => {
             if (!delta) return;
+            if (!allowCjk) delta = stripUnexpectedCjk(delta);
             if (!live) { removeTyping(); live = appendAiLiveMessage(''); }
             liveText += delta;
             updateAiLiveMessage(live.textEl, liveText);
@@ -697,6 +710,7 @@ async function sendMessage() {
             );
         }
 
+        if (!allowCjk) reply = stripUnexpectedCjk(reply);
         if (!reply) throw new Error('Пустой ответ от модели');
         removeTyping();
         if (!live) appendMessage('ai', reply);
