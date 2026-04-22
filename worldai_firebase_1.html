@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WorldAI">
     <meta name="theme-color" content="#0a0a0a">
     <title>WorldAI</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./icons/icon-192.svg">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles/main.css">
@@ -57,6 +60,10 @@
 </div>
 
 <aside>
+    <div class="mobile-menu-head">
+        <div class="mobile-menu-title">Навигация</div>
+        <button class="mobile-menu-close" type="button" onclick="closeSidebar()">Закрыть</button>
+    </div>
     <div class="logo">WORLD<span>AI</span></div>
     <div class="user-badge" id="user-badge" style="display:none">
         <img class="user-avatar" id="user-avatar" src="" alt="">
@@ -97,17 +104,52 @@
         </div>
         <div class="input-area">
             <div class="input-outer">
-                <div class="model-bar" id="model-bar">
-                    <span class="model-bar-label">МОДЕЛЬ:</span>
-                    <button class="model-btn active" id="mbtn-llama" onclick="selectModel('llama')"><span class="model-dot"></span><span>Llama 3.3</span><span class="model-provider">Groq · Бесплатно</span></button>
-                    <button class="model-btn" id="mbtn-gpt4o-mini" onclick="selectModel('gpt4o-mini')"><span class="model-dot"></span><span>GPT-4o mini</span><span class="model-provider">OpenAI</span></button>
-                    <button class="model-btn" id="mbtn-gpt4o" onclick="selectModel('gpt4o')"><span class="model-dot"></span><span>GPT-4o</span><span class="model-provider">OpenAI</span></button>
-                    <button class="model-btn" id="mbtn-claude-haiku" onclick="selectModel('claude-haiku')"><span class="model-dot"></span><span>Claude Haiku</span><span class="model-provider">Anthropic</span></button>
-                    <button class="model-btn" id="mbtn-claude-sonnet" onclick="selectModel('claude-sonnet')"><span class="model-dot"></span><span>Claude Sonnet</span><span class="model-provider">Anthropic</span></button>
+                <div class="chat-toolbar">
+                    <button class="chat-toolbar-btn" id="tooltab-mode" onclick="openToolSheet('mode')">⚙ Режим</button>
+                    <button class="chat-toolbar-btn" id="tooltab-media" onclick="openToolSheet('media')">🖼 Медиа</button>
+                    <button class="chat-toolbar-btn" id="tooltab-prompts" onclick="openToolSheet('prompts')">✨ Промпты</button>
+                    <button class="chat-toolbar-btn" id="tooltab-export" onclick="openToolSheet('export')">⬇ Экспорт</button>
+                </div>
+                <div class="tool-sheet-backdrop" id="tool-sheet-backdrop" style="display:none" onclick="closeToolSheet()"></div>
+                <div class="tool-sheet" id="tool-sheet" style="display:none">
+                    <div class="tool-sheet-head">
+                        <span id="tool-sheet-title">Режим</span>
+                        <button type="button" class="tool-sheet-close" onclick="closeToolSheet()">Закрыть</button>
+                    </div>
+                    <div class="tool-sheet-body">
+                        <div class="tool-pane" id="tool-pane-mode">
+                            <div class="model-bar" id="model-bar">
+                                <button class="model-btn active" id="mbtn-fast" onclick="selectModel('fast')"><span class="model-dot"></span><span>World AI 1.0</span><span class="model-provider">Быстрый</span></button>
+                                <button class="model-btn" id="mbtn-thinking" onclick="selectModel('thinking')"><span class="model-dot"></span><span>Thinking</span><span class="model-provider">Размышляющий</span></button>
+                                <button class="model-btn" id="mbtn-pro" onclick="selectModel('pro')"><span class="model-dot"></span><span>World AI 1.0 Pro</span><span class="model-provider">Продвинутый</span></button>
+                            </div>
+                        </div>
+                        <div class="tool-pane" id="tool-pane-media" style="display:none">
+                            <div class="prompt-templates">
+                                <button class="template-btn" onclick="openAttachmentPicker()">📎 Выбрать документ/фото</button>
+                                <button class="template-btn" onclick="setImageMode(true)">🖼 Создать изображение</button>
+                                <button class="template-btn" onclick="setImageMode(false)">💬 Обычный чат</button>
+                            </div>
+                        </div>
+                        <div class="tool-pane" id="tool-pane-prompts" style="display:none">
+                            <div class="prompt-templates">
+                                <button class="template-btn" onclick="applyPromptTemplate('simple')">Объясни просто</button>
+                                <button class="template-btn" onclick="applyPromptTemplate('plan')">План 7 дней</button>
+                                <button class="template-btn" onclick="applyPromptTemplate('flashcards')">Карточки</button>
+                                <button class="template-btn" onclick="applyPromptTemplate('factcheck')">Фактчек</button>
+                                <button class="template-btn" onclick="applyPromptTemplate('exam')">Тренажер</button>
+                            </div>
+                        </div>
+                        <div class="tool-pane" id="tool-pane-export" style="display:none">
+                            <div class="export-actions">
+                                <button class="export-btn" onclick="exportChat('txt')">Экспорт TXT</button>
+                                <button class="export-btn" onclick="exportChat('md')">Экспорт MD</button>
+                                <button class="export-btn" onclick="exportChat('pdf')">Экспорт PDF</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="input-wrap">
-                    <button class="tool-btn" id="attach-btn" onclick="openAttachmentPicker()" title="Прикрепить документ">📎</button>
-                    <button class="tool-btn" id="image-mode-btn" onclick="toggleImageMode()" title="Сгенерировать изображение">🖼</button>
                     <textarea id="user-input" rows="1" placeholder="Задай любой вопрос..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
                     <button class="send-btn" id="send-btn" onclick="sendMessage()">
                         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -118,7 +160,7 @@
                     <span id="attachment-chip-text"></span>
                     <button type="button" onclick="clearAttachment()" title="Убрать файл">✕</button>
                 </div>
-                <div class="input-hint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка &nbsp;·&nbsp; <span id="current-model-hint" style="color:#555">Llama 3.3 (Groq)</span></div>
+                <div class="input-hint"><span id="current-model-hint" style="color:#555">Быстрый режим · онлайн-справка · Groq</span></div>
             </div>
         </div>
     </section>
@@ -133,6 +175,11 @@
             <button onclick="changeYear(100)" style="background:none;border:1px solid #333;color:#00e676;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">›</button>
         </div>
         <div id="map-loading" style="display:none;position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:8px 16px;color:#00e676;font-size:12px;font-family:'Space Mono',monospace;">Загрузка...</div>
+        <button class="map-exit-btn" onclick="setTab('sec-ai','nav-ai')">← В чат</button>
+        <div class="map-mobile-actions">
+            <button class="map-action-btn" onclick="setTab('sec-ai','nav-ai')">💬 Чат</button>
+            <button class="map-action-btn" onclick="toggleSidebar()">☰ Меню</button>
+        </div>
         <div id="map"></div>
     </section>
     <section id="sec-search" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
@@ -390,6 +437,13 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="./js/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+}
+</script>
 </body>
 </html>
 
