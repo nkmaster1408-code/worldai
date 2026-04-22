@@ -1,5 +1,5 @@
 ﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut as fbSignOut }
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithCredential, getRedirectResult, onAuthStateChanged, signOut as fbSignOut }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, orderBy, query }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -79,21 +79,78 @@ let activeGenerationId = 0;
 let map = null;
 let imageModeEnabled = false;
 let pendingAttachment = null;
+const PROMPT_TEMPLATES = {
+    simple: (topic) => `Объясни простыми словами${topic ? `: ${topic}` : ' выбранную тему'}. Структура: 1) суть, 2) пример из жизни, 3) мини-вывод.`,
+    plan: (topic) => `Сделай пошаговый план${topic ? ` по теме "${topic}"` : ''} на 7 дней. Формат: день -> задача -> результат.`,
+    flashcards: (topic) => `Сделай 10 карточек для запоминания${topic ? ` по теме "${topic}"` : ''}. Формат: Вопрос | Короткий ответ.`,
+    factcheck: (topic) => `Проверь факты в этом тексте${topic ? `: ${topic}` : ''}. Отметь: верно / спорно / неверно + короткое объяснение.`,
+    exam: (topic) => `Сделай мини-тренажер${topic ? ` по теме "${topic}"` : ''}: 5 вопросов разной сложности и ответы в конце.`
+};
+function getNativeFirebaseAuth() {
+    return window.Capacitor?.Plugins?.FirebaseAuthentication || null;
+}
+
+function isNativeAndroid() {
+    const cap = window.Capacitor;
+    if (!cap) return false;
+    if (cap.getPlatform?.() === 'android') return true;
+    return /Android/i.test(navigator.userAgent) && !!getNativeFirebaseAuth();
+}
+
+async function signInWithGoogleNative() {
+    const nativeFirebaseAuth = getNativeFirebaseAuth();
+    if (!nativeFirebaseAuth?.signInWithGoogle) {
+        throw new Error('Native Google Sign-In plugin is not available.');
+    }
+
+    const nativeResult = await nativeFirebaseAuth.signInWithGoogle();
+    const idToken = nativeResult?.credential?.idToken || nativeResult?.idToken;
+    if (!idToken) {
+        throw new Error('Google did not return idToken. Check Firebase Android setup.');
+    }
+
+    const credential = GoogleAuthProvider.credential(idToken);
+    await signInWithCredential(auth, credential);
+}
 
 // ── AUTH ──
 window.signInWithGoogle = async () => {
     try {
+        provider.setCustomParameters({ prompt: 'select_account' });
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isCapacitor = !!window.Capacitor;
+
+        if (isNativeAndroid()) {
+            await signInWithGoogleNative();
+            return;
+        }
+
+        // In Android WebView redirect flow often returns to localhost and fails.
+        // Try popup first inside Capacitor, fallback to redirect for normal mobile browsers.
+        if (isCapacitor) {
+            await signInWithPopup(auth, provider);
+            return;
+        }
+
         if (isMobile) {
             await signInWithRedirect(auth, provider);
-        } else {
-            await signInWithPopup(auth, provider);
+            return;
         }
+
+        await signInWithPopup(auth, provider);
     }
     catch(e) { alert('\u041e\u0448\u0438\u0431\u043a\u0430 \u0432\u0445\u043e\u0434\u0430: ' + e.message); }
 };
 window.signOut = async () => {
     if (!confirm('\u0412\u044b\u0439\u0442\u0438 \u0438\u0437 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u0430?')) return;
+    const nativeFirebaseAuth = getNativeFirebaseAuth();
+    if (isNativeAndroid() && nativeFirebaseAuth?.signOut) {
+        try {
+            await nativeFirebaseAuth.signOut();
+        } catch (e) {
+            console.warn('Native signOut warning:', e?.message || e);
+        }
+    }
     await fbSignOut(auth);
 };
 getRedirectResult(auth).catch(() => {});
@@ -228,12 +285,88 @@ function finishSendState(generationId, inputEl) {
     if (inputEl) inputEl.focus();
 }
 
+function isMobileViewport() {
+    return window.matchMedia('(max-width: 900px)').matches;
+}
+
+function updateSidebarState(open) {
+    const aside = document.querySelector('aside');
+    const overlay = document.querySelector('.mob-overlay');
+    const toggle = document.querySelector('.mob-toggle');
+    if (!aside || !overlay) return;
+    aside.classList.toggle('open', open);
+    overlay.classList.toggle('open', open);
+    document.body.classList.toggle('nav-open', open);
+    if (toggle) {
+        toggle.textContent = open ? '✕' : '☰';
+        toggle.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+        toggle.setAttribute('title', open ? 'Закрыть меню' : 'Открыть меню');
+    }
+}
+
+const TOOL_SHEET_TITLES = {
+    mode: 'Режим ИИ',
+    media: 'Изображения и файлы',
+    prompts: 'Шаблоны промптов',
+    export: 'Экспорт чата'
+};
+
+function setToolSheetPane(pane) {
+    const normalized = TOOL_SHEET_TITLES[pane] ? pane : 'mode';
+    document.querySelectorAll('.tool-pane').forEach((el) => {
+        el.style.display = el.id === `tool-pane-${normalized}` ? 'block' : 'none';
+    });
+    document.querySelectorAll('.chat-toolbar-btn').forEach((btn) => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`tooltab-${normalized}`);
+    if (activeBtn) activeBtn.classList.add('active');
+    const title = document.getElementById('tool-sheet-title');
+    if (title) title.textContent = TOOL_SHEET_TITLES[normalized];
+    return normalized;
+}
+
+window.openToolSheet = (pane = 'mode') => {
+    const sheet = document.getElementById('tool-sheet');
+    const backdrop = document.getElementById('tool-sheet-backdrop');
+    if (!sheet || !backdrop) return;
+    const next = setToolSheetPane(pane);
+    const alreadyOpen = sheet.style.display !== 'none';
+    const currentPane = sheet.dataset.pane || '';
+    if (alreadyOpen && currentPane === next) {
+        window.closeToolSheet();
+        return;
+    }
+    sheet.dataset.pane = next;
+    sheet.style.display = 'block';
+    backdrop.style.display = 'block';
+    document.body.classList.add('tool-sheet-open');
+};
+
+window.closeToolSheet = () => {
+    const sheet = document.getElementById('tool-sheet');
+    const backdrop = document.getElementById('tool-sheet-backdrop');
+    if (sheet) {
+        sheet.style.display = 'none';
+        sheet.dataset.pane = '';
+    }
+    if (backdrop) backdrop.style.display = 'none';
+    document.body.classList.remove('tool-sheet-open');
+    document.querySelectorAll('.chat-toolbar-btn').forEach((btn) => btn.classList.remove('active'));
+};
+
 // ── TABS ──
 window.setTab = (sectionId, navId) => {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById(sectionId).classList.add('active');
-    document.getElementById(navId).classList.add('active');
+    const activeSection = document.getElementById(sectionId);
+    const activeNav = document.getElementById(navId);
+    if (!activeSection || !activeNav) return;
+    activeSection.classList.add('active');
+    activeSection.classList.remove('tab-fade-in');
+    void activeSection.offsetWidth;
+    activeSection.classList.add('tab-fade-in');
+    activeNav.classList.add('active');
+    if (isMobileViewport()) updateSidebarState(false);
+    if (sectionId !== 'sec-ai') window.closeToolSheet();
     applySectionMotion(sectionId);
     if (sectionId === 'sec-map') initMap();
     if (sectionId === 'sec-search') { setTimeout(() => document.getElementById('country-input').focus(), 100); }
@@ -420,7 +553,14 @@ function appendTyping() {
     const msgs = document.getElementById('messages');
     const div = document.createElement('div');
     div.className = 'msg msg-ai'; div.id = 'typing-msg';
-    div.innerHTML = `<div class="ai-label">◆ WORLDAI</div><div class="typing-indicator"><span></span><span></span><span></span></div>`;
+    const modelLabel = MODELS[currentModel] ? MODELS[currentModel].label : 'WORLDAI';
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div>
+        <div class="ai-skeleton">
+            <div class="ai-skeleton-line w92"></div>
+            <div class="ai-skeleton-line w84"></div>
+            <div class="ai-skeleton-line w68"></div>
+            <div class="typing-indicator"><span></span><span></span><span></span></div>
+        </div>`;
     msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
 }
 function removeTyping() { const t = document.getElementById('typing-msg'); if (t) t.remove(); }
@@ -589,16 +729,33 @@ async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
 
 // ── MODEL SWITCHER ──
 const MODELS = {
-    'llama':         { label: 'Llama 3.3 (Groq)', hint: 'Llama 3.3 · Groq · Бесплатно', provider: 'groq',    apiModel: 'llama-3.3-70b-versatile' },
-    'gpt4o-mini':    { label: 'GPT-4o mini',       hint: 'GPT-4o mini · OpenAI',          provider: 'openai',  apiModel: 'gpt-4o-mini' },
-    'gpt4o':         { label: 'GPT-4o',            hint: 'GPT-4o · OpenAI',               provider: 'openai',  apiModel: 'gpt-4o' },
-    'claude-haiku':  { label: 'Claude Haiku',      hint: 'Claude Haiku 4.5 · Anthropic',  provider: 'claude',  apiModel: 'claude-haiku-4-5-20251001' },
-    'claude-sonnet': { label: 'Claude Sonnet',     hint: 'Claude Sonnet 4.6 · Anthropic', provider: 'claude',  apiModel: 'claude-sonnet-4-6' },
+    fast: {
+        label: 'World AI 1.0',
+        hint: 'Быстрый режим · онлайн-справка · Groq',
+        apiModel: 'llama-3.1-8b-instant',
+        maxTokens: 700,
+        contextLimit: 8,
+        mode: 'fast'
+    },
+    thinking: {
+        label: 'World AI 1.0 Thinking',
+        hint: 'Размышляющий режим · точность выше · Groq',
+        apiModel: 'llama3-70b-8192',
+        maxTokens: 1200,
+        contextLimit: 12,
+        mode: 'thinking'
+    },
+    pro: {
+        label: 'World AI 1.0 Pro',
+        hint: 'Pro режим · сильнее и новее · Groq',
+        apiModel: 'llama-3.3-70b-versatile',
+        maxTokens: 1500,
+        contextLimit: 14,
+        mode: 'pro'
+    }
 };
-// Worker endpoints — замените на свои!
-const OPENAI_WORKER  = `${BACKEND_BASE}/api/chat`;                                  // стабильный OpenAI endpoint через твой backend
-const CLAUDE_WORKER  = 'https://empty-sea-c1b4.nkmaster1408.workers.dev/claude';   // должен проксировать api.anthropic.com/v1/messages
-let currentModel = 'llama';
+const CHAT_WORKER = `${BACKEND_BASE}/api/chat`;
+let currentModel = 'fast';
 
 window.selectModel = (key) => {
     if (!MODELS[key]) return;
@@ -632,6 +789,10 @@ function setImageMode(enabled) {
     if (btn) btn.classList.toggle('active', imageModeEnabled);
     if (input) input.placeholder = imageModeEnabled ? 'Опиши изображение, которое хочешь сгенерировать...' : 'Задай любой вопрос...';
 }
+window.setImageMode = (enabled) => {
+    setImageMode(enabled);
+    window.closeToolSheet?.();
+};
 window.toggleImageMode = () => {
     setImageMode(!imageModeEnabled);
     if (imageModeEnabled && pendingAttachment) {
@@ -640,6 +801,7 @@ window.toggleImageMode = () => {
     }
 };
 window.openAttachmentPicker = () => {
+    window.closeToolSheet?.();
     const picker = document.getElementById('doc-file-input');
     if (picker) picker.click();
 };
@@ -729,10 +891,111 @@ function buildFastContext(history, limit = 10) {
     }));
 }
 
+async function fetchFastWebContext(queryText = '') {
+    const q = String(queryText || '').trim();
+    if (!q) return '';
+    try {
+        const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q.slice(0, 180))}&format=json&no_html=1&skip_disambig=1&no_redirect=1`;
+        const res = await fetch(url, { method: 'GET' });
+        if (!res.ok) return '';
+        const data = await res.json();
+        const lines = [];
+        if (data?.AbstractText) lines.push(String(data.AbstractText));
+        const related = Array.isArray(data?.RelatedTopics) ? data.RelatedTopics : [];
+        for (const item of related.slice(0, 3)) {
+            const text = item?.Text || item?.Topics?.[0]?.Text;
+            if (text) lines.push(String(text));
+        }
+        const merged = lines.join('\n').trim();
+        return merged.slice(0, 1000);
+    } catch {
+        return '';
+    }
+}
+
 // ── SEND ──
 window.quickSend = (text) => { document.getElementById('user-input').value = text; sendMessage(); };
+window.applyPromptTemplate = (key) => {
+    const input = document.getElementById('user-input');
+    const fn = PROMPT_TEMPLATES[key];
+    if (!input || !fn) return;
+    const current = String(input.value || '').trim();
+    input.value = fn(current);
+    if (typeof window.autoResize === 'function') window.autoResize(input);
+    input.focus();
+    window.closeToolSheet?.();
+};
+
+function buildChatExportText(format = 'txt') {
+    const lines = [];
+    lines.push(`WorldAI Export`);
+    lines.push(`Дата: ${new Date().toLocaleString()}`);
+    lines.push('');
+    for (const item of chatHistory) {
+        const role = item.role === 'user' ? 'Пользователь' : 'WorldAI';
+        const content = String(item.content || '').trim();
+        if (!content) continue;
+        if (format === 'md') {
+            lines.push(`### ${role}`);
+            lines.push(content);
+            lines.push('');
+            continue;
+        }
+        lines.push(`[${role}]`);
+        lines.push(content);
+        lines.push('');
+    }
+    return lines.join('\n');
+}
+
+function triggerDownload(fileName, text, mimeType) {
+    const blob = new Blob([text], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+}
+
+window.exportChat = (format = 'txt') => {
+    if (!chatHistory.length) {
+        alert('История чата пока пустая.');
+        return;
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    if (format === 'pdf') {
+        const printable = buildChatExportText('txt')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+        const w = window.open('', '_blank');
+        if (!w) {
+            alert('Разреши всплывающее окно для экспорта PDF.');
+            return;
+        }
+        w.document.write(`<html><head><title>WorldAI Export</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.6;color:#111}h1{font-size:20px;margin:0 0 16px}</style></head><body><h1>WorldAI Export</h1>${printable}</body></html>`);
+        w.document.close();
+        w.focus();
+        w.print();
+        window.closeToolSheet?.();
+        return;
+    }
+    if (format === 'md') {
+        triggerDownload(`worldai-chat-${stamp}.md`, buildChatExportText('md'), 'text/markdown;charset=utf-8');
+        window.closeToolSheet?.();
+        return;
+    }
+    triggerDownload(`worldai-chat-${stamp}.txt`, buildChatExportText('txt'), 'text/plain;charset=utf-8');
+    window.closeToolSheet?.();
+};
+
 async function sendMessage() {
     if (isLoading || !currentUser) return;
+    window.closeToolSheet?.();
     const generationId = ++activeGenerationId;
     const input = document.getElementById('user-input');
     const text = input.value.trim();
@@ -764,12 +1027,10 @@ async function sendMessage() {
         if (userProfile.tone === 'deep') systemPrompt += ' Стиль общения: глубоко, подробно, с примерами и деталями.';
         if (userProfile.tone === 'friendly') systemPrompt += ' Стиль общения: дружелюбно и поддерживающе.';
 
-        const mdl = MODELS[currentModel];
+        const mdl = MODELS[currentModel] || MODELS.fast;
         const isImageAttachment = hasAttachment && /^image\//i.test(String(pendingAttachment?.type || ''));
-        const docProvider = mdl?.provider === 'groq' ? 'groq' : 'openai';
-        const docModel = docProvider === 'groq'
-            ? (isImageAttachment ? 'meta-llama/llama-4-scout-17b-16e-instruct' : (mdl?.apiModel || 'llama-3.3-70b-versatile'))
-            : ((mdl?.provider === 'openai' && mdl?.apiModel) ? mdl.apiModel : 'gpt-4o-mini');
+        const docProvider = 'groq';
+        const docModel = isImageAttachment ? 'meta-llama/llama-4-scout-17b-16e-instruct' : (mdl?.apiModel || 'llama-3.3-70b-versatile');
 
         const shouldGenerateImage = imageModeEnabled || (!hasAttachment && isLikelyImagePrompt(text));
         if (shouldGenerateImage) {
@@ -803,7 +1064,15 @@ async function sendMessage() {
             return;
         }
 
-        const contextMessages = buildFastContext(chatHistory, 10);
+        if (mdl.mode === 'fast') {
+            systemPrompt += ' Режим быстрый: отвечай максимально быстро, коротко и по сути.';
+        } else if (mdl.mode === 'thinking') {
+            systemPrompt += ' Режим размышляющий: сначала проверь логику, затем дай точный и аккуратный ответ с шагами.';
+        } else if (mdl.mode === 'pro') {
+            systemPrompt += ' Режим pro: отвечай на уровне эксперта, глубже анализируй детали и давай сильные практичные рекомендации.';
+        }
+
+        const contextMessages = buildFastContext(chatHistory, mdl.contextLimit || 10);
         let live = null;
         let liveText = '';
         const allowCjk = shouldAllowCjk(userTextForHistory);
@@ -816,30 +1085,29 @@ async function sendMessage() {
             updateAiLiveMessage(live.textEl, liveText);
         };
 
-        let reply = '';
-        if (mdl.provider === 'groq') {
-            reply = await fetchReplyWithStreaming(
-                GROQ_WORKER,
-                { provider: 'groq', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...contextMessages], max_tokens: 900, stream: true },
-                'openai',
-                onDelta
-            );
-        } else if (mdl.provider === 'openai') {
-            reply = await fetchReplyWithStreaming(
-                OPENAI_WORKER,
-                { provider: 'openai', model: mdl.apiModel, messages: [{ role: 'system', content: systemPrompt }, ...contextMessages], max_tokens: 900, stream: true },
-                'openai',
-                onDelta
-            );
-        } else if (mdl.provider === 'claude') {
-            const claudeMessages = chatHistory.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
-            reply = await fetchReplyWithStreaming(
-                CLAUDE_WORKER,
-                { model: mdl.apiModel, system: systemPrompt, messages: claudeMessages, max_tokens: 2048, stream: true },
-                'claude',
-                onDelta
-            );
+        const preparedMessages = [{ role: 'system', content: systemPrompt }, ...contextMessages];
+        if (mdl.mode === 'fast') {
+            const webContext = await fetchFastWebContext(userTextForHistory);
+            if (webContext) {
+                preparedMessages.splice(1, 0, {
+                    role: 'system',
+                    content: `Краткая интернет-справка (используй как дополнительный контекст, перепроверь на здравый смысл):\n${webContext}`
+                });
+            }
         }
+
+        let reply = await fetchReplyWithStreaming(
+            CHAT_WORKER,
+            {
+                provider: 'groq',
+                model: mdl.apiModel,
+                messages: preparedMessages,
+                max_tokens: mdl.maxTokens || 900,
+                stream: true
+            },
+            'openai',
+            onDelta
+        );
 
         if (generationId !== activeGenerationId) return;
         reply = sanitizeAiText(reply, userTextForHistory);
@@ -866,8 +1134,16 @@ window.autoResize = (el) => { el.style.height = 'auto'; el.style.height = Math.m
 
 // ── SIDEBAR TOGGLE ──
 window.toggleSidebar = () => {
-    document.querySelector('aside').classList.toggle('open');
+    const aside = document.querySelector('aside');
+    if (!aside) return;
+    updateSidebarState(!aside.classList.contains('open'));
 };
+window.closeSidebar = () => updateSidebarState(false);
+
+window.addEventListener('resize', () => {
+    if (!isMobileViewport()) updateSidebarState(false);
+});
+window.addEventListener('load', () => updateSidebarState(false));
 
 // ── THEME ──
 window.toggleTheme = () => {
