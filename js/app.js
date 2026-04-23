@@ -79,6 +79,18 @@ let activeGenerationId = 0;
 let map = null;
 let imageModeEnabled = false;
 let pendingAttachment = null;
+const PLAN_LIMITS = {
+    free: { chatPerDay: 45, imagePerDay: 4, whatIfPerDay: 8 },
+    plus: { chatPerDay: 260, imagePerDay: 30, whatIfPerDay: 50 },
+    pro: { chatPerDay: 900, imagePerDay: 160, whatIfPerDay: 220 }
+};
+const usageState = {
+    dateKey: '',
+    chatUsed: 0,
+    imageUsed: 0,
+    whatIfUsed: 0,
+    loaded: false
+};
 const PROMPT_TEMPLATES = {
     simple: (topic) => `Объясни простыми словами${topic ? `: ${topic}` : ' выбранную тему'}. Структура: 1) суть, 2) пример из жизни, 3) мини-вывод.`,
     plan: (topic) => `Сделай пошаговый план${topic ? ` по теме "${topic}"` : ''} на 7 дней. Формат: день -> задача -> результат.`,
@@ -160,7 +172,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('user-badge').style.display = 'flex';
-        document.getElementById('user-avatar').src = user.photoURL || '';
+        document.getElementById('user-avatar').src = user.photoURL || AVATAR_PLACEHOLDER;
         document.getElementById('user-name').textContent = user.displayName || user.email;
         await loadSessions();
         await loadProfile();
@@ -169,6 +181,11 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('user-badge').style.display = 'none';
         sessions = [];
+        usageState.dateKey = '';
+        usageState.chatUsed = 0;
+        usageState.imageUsed = 0;
+        usageState.whatIfUsed = 0;
+        usageState.loaded = false;
         renderHistory();
     }
 });
@@ -180,9 +197,154 @@ const DEFAULT_PROFILE = {
     about: '',
     interests: '',
     goals: '',
-    tone: 'friendly'
+    tone: 'friendly',
+    avatarDataUrl: '',
+    plan: 'free'
 };
 let userProfile = { ...DEFAULT_PROFILE };
+let profileAvatarDraft = '';
+const AVATAR_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1f3d2a"/><stop offset="100%" stop-color="#0f1f16"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><circle cx="64" cy="50" r="22" fill="#00e676" opacity="0.7"/><path d="M24 112c8-22 25-34 40-34s32 12 40 34" fill="#00e676" opacity="0.55"/></svg>'
+)}`;
+
+function getEffectiveAvatar() {
+    return (userProfile.avatarDataUrl && userProfile.avatarDataUrl.trim()) || currentUser?.photoURL || AVATAR_PLACEHOLDER;
+}
+
+function getEffectiveUserName() {
+    return userProfile.name || currentUser?.displayName || currentUser?.email || '';
+}
+
+function updateUserBadgeIdentity() {
+    const avatarEl = document.getElementById('user-avatar');
+    const nameEl = document.getElementById('user-name');
+    if (avatarEl) avatarEl.src = getEffectiveAvatar();
+    if (nameEl) nameEl.textContent = getEffectiveUserName();
+}
+
+function renderProfileAvatarPreview() {
+    const previewEl = document.getElementById('profile-avatar-preview');
+    if (!previewEl) return;
+    previewEl.src = profileAvatarDraft || currentUser?.photoURL || AVATAR_PLACEHOLDER;
+}
+
+function getLocalDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getCurrentPlanKey() {
+    return PLAN_LIMITS[userProfile?.plan] ? userProfile.plan : 'free';
+}
+
+function getCurrentPlanLimits() {
+    return PLAN_LIMITS[getCurrentPlanKey()] || PLAN_LIMITS.free;
+}
+
+function getUsageRow(type) {
+    if (type === 'image') return { used: usageState.imageUsed, limit: getCurrentPlanLimits().imagePerDay };
+    if (type === 'whatif') return { used: usageState.whatIfUsed, limit: getCurrentPlanLimits().whatIfPerDay };
+    return { used: usageState.chatUsed, limit: getCurrentPlanLimits().chatPerDay };
+}
+
+function formatUsageText(type) {
+    const row = getUsageRow(type);
+    return `${row.used}/${row.limit} · осталось ${Math.max(0, row.limit - row.used)}`;
+}
+
+function setUsageStatus(text = '', isError = false) {
+    const statusEl = document.getElementById('profile-status');
+    if (!statusEl || !text) return;
+    statusEl.textContent = text;
+    statusEl.style.color = isError ? 'var(--danger)' : '#9a9a9a';
+}
+
+function renderUsageWallet() {
+    const chatEl = document.getElementById('usage-chat');
+    const imageEl = document.getElementById('usage-image');
+    const whatIfEl = document.getElementById('usage-whatif');
+    if (chatEl) chatEl.textContent = formatUsageText('chat');
+    if (imageEl) imageEl.textContent = formatUsageText('image');
+    if (whatIfEl) whatIfEl.textContent = formatUsageText('whatif');
+}
+
+async function saveUsageState() {
+    if (!currentUser) return;
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid, 'usage', 'daily'), {
+            dateKey: usageState.dateKey,
+            chatUsed: usageState.chatUsed,
+            imageUsed: usageState.imageUsed,
+            whatIfUsed: usageState.whatIfUsed,
+            updatedAt: Date.now()
+        });
+    } catch (e) {
+        console.warn('usage save warning:', e?.message || e);
+    }
+}
+
+async function ensureUsageLoaded(force = false) {
+    if (!currentUser) return;
+    const today = getLocalDateKey();
+    if (!force && usageState.loaded && usageState.dateKey === today) {
+        renderUsageWallet();
+        return;
+    }
+    try {
+        const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const usageSnap = await getDoc(doc(db, 'users', currentUser.uid, 'usage', 'daily'));
+        if (usageSnap.exists()) {
+            const data = usageSnap.data() || {};
+            usageState.dateKey = String(data.dateKey || today);
+            usageState.chatUsed = Number(data.chatUsed || 0);
+            usageState.imageUsed = Number(data.imageUsed || 0);
+            usageState.whatIfUsed = Number(data.whatIfUsed || 0);
+        } else {
+            usageState.dateKey = today;
+            usageState.chatUsed = 0;
+            usageState.imageUsed = 0;
+            usageState.whatIfUsed = 0;
+        }
+        if (usageState.dateKey !== today) {
+            usageState.dateKey = today;
+            usageState.chatUsed = 0;
+            usageState.imageUsed = 0;
+            usageState.whatIfUsed = 0;
+            await saveUsageState();
+        }
+        usageState.loaded = true;
+        renderUsageWallet();
+    } catch (e) {
+        console.warn('usage load warning:', e?.message || e);
+    }
+}
+
+async function consumeUsage(type) {
+    await ensureUsageLoaded();
+    if (type === 'image') usageState.imageUsed += 1;
+    else if (type === 'whatif') usageState.whatIfUsed += 1;
+    else usageState.chatUsed += 1;
+    await saveUsageState();
+    renderUsageWallet();
+}
+
+async function checkUsageLimit(type, showAlert = true) {
+    await ensureUsageLoaded();
+    const row = getUsageRow(type);
+    if (row.used < row.limit) return true;
+    const labels = {
+        chat: 'Лимит чатов на сегодня исчерпан.',
+        image: 'Лимит генерации изображений на сегодня исчерпан.',
+        whatif: 'Лимит What-if симулятора на сегодня исчерпан.'
+    };
+    const msg = `${labels[type] || 'Лимит на сегодня исчерпан.'} План: ${getCurrentPlanKey().toUpperCase()}.`;
+    if (showAlert) alert(msg);
+    setUsageStatus(msg, true);
+    return false;
+}
 
 async function loadProfile() {
     if (!currentUser) return;
@@ -193,13 +355,14 @@ async function loadProfile() {
             userProfile = { ...DEFAULT_PROFILE, ...snap.data() };
             populateProfileForm();
             renderProfilePreview();
-            if (userProfile.name) {
-                document.getElementById('user-name').textContent = userProfile.name;
-            }
+            updateUserBadgeIdentity();
+            await ensureUsageLoaded(true);
         } else {
             userProfile = { ...DEFAULT_PROFILE };
             populateProfileForm();
             renderProfilePreview();
+            updateUserBadgeIdentity();
+            await ensureUsageLoaded(true);
             setTimeout(() => askForProfile(), 1000);
         }
     } catch(e) { console.error(e); }
@@ -210,10 +373,9 @@ async function saveProfile(profileData) {
     try {
         userProfile = { ...DEFAULT_PROFILE, ...profileData };
         await setDoc(doc(db, 'users', currentUser.uid, 'profile', 'data'), userProfile);
-        if (userProfile.name) {
-            document.getElementById('user-name').textContent = userProfile.name;
-        }
+        updateUserBadgeIdentity();
         renderProfilePreview();
+        renderUsageWallet();
     } catch(e) { console.error(e); }
 }
 
@@ -273,16 +435,30 @@ function interruptCurrentGeneration() {
     activeGenerationId += 1;
     isLoading = false;
     removeTyping();
-    const sendBtn = document.getElementById('send-btn');
-    if (sendBtn) sendBtn.disabled = false;
+    setSendButtonState(false);
 }
 
 function finishSendState(generationId, inputEl) {
     if (generationId !== activeGenerationId) return;
     isLoading = false;
-    const sendBtn = document.getElementById('send-btn');
-    if (sendBtn) sendBtn.disabled = false;
+    setSendButtonState(false);
     if (inputEl) inputEl.focus();
+}
+
+function setSendButtonState(isGenerating) {
+    const sendBtn = document.getElementById('send-btn');
+    if (!sendBtn) return;
+    sendBtn.disabled = false;
+    sendBtn.classList.toggle('is-loading', isGenerating);
+    if (isGenerating) {
+        sendBtn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.8"/></svg>';
+        sendBtn.title = 'Остановить генерацию';
+        sendBtn.onclick = () => interruptCurrentGeneration();
+    } else {
+        sendBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>';
+        sendBtn.title = 'Отправить';
+        sendBtn.onclick = () => sendMessage();
+    }
 }
 
 function isMobileViewport() {
@@ -421,6 +597,13 @@ function loadSession(id) {
     const msgs = document.getElementById('messages');
     msgs.innerHTML = '';
     s.messages.forEach(m => {
+        if (isImageMessage(m) && m.role !== 'user') {
+            const imageSrc = normalizeImageSource(m);
+            if (imageSrc) {
+                appendImageMessage(imageSrc, m.imagePrompt || m.content || 'Сгенерированное изображение', false);
+                return;
+            }
+        }
         const text = m.content || m.parts?.[0]?.text || '';
         const role = m.role === 'user' ? 'user' : 'ai';
         if (text) appendMessage(role, text, false);
@@ -466,10 +649,12 @@ function appendImageMessage(imageUrl, prompt, animate = true) {
     const fileName = `worldai-image-${Date.now()}.png`;
     const openId = 'img-open-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const dlId = 'img-dl-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><img src="${imageUrl}" alt="Сгенерированное изображение"><div class="ai-image-caption">${safePrompt}</div><div class="ai-image-tools"><button id="${openId}" type="button">Открыть</button><button id="${dlId}" type="button">Скачать</button></div></div></div>`;
+    div.innerHTML = `<div class="ai-label">◆ ${modelLabel.toUpperCase()}</div><div class="ai-text"><p><strong>Изображение сгенерировано:</strong></p><div class="ai-image"><img src="${imageUrl}" alt="Сгенерированное изображение" style="cursor:zoom-in"><div class="ai-image-caption">${safePrompt}</div><div class="ai-image-tools"><button id="${openId}" type="button">Открыть</button><button id="${dlId}" type="button">Скачать</button></div></div></div>`;
     msgs.appendChild(div);
+    const imageEl = div.querySelector('img');
     const openBtn = div.querySelector(`#${openId}`);
     const dlBtn = div.querySelector(`#${dlId}`);
+    if (imageEl) imageEl.onclick = () => showImagePreview(imageUrl, fileName);
     if (openBtn) openBtn.onclick = () => showImagePreview(imageUrl, fileName);
     if (dlBtn) dlBtn.onclick = () => downloadGeneratedImage(imageUrl, fileName);
     msgs.scrollTop = msgs.scrollHeight;
@@ -481,6 +666,39 @@ function isLikelyImagePrompt(text) {
     const make = /(создай|сгенерируй|нарисуй|generate|draw)/.test(t);
     const subject = /(картин|изображ|фото|image|art)/.test(t);
     return make && subject;
+}
+
+function inferImageStyleHints(promptText = '') {
+    const t = String(promptText || '').toLowerCase();
+    const hints = [];
+    if (/(фото|photoreal|реалист|портрет|portrait)/.test(t)) {
+        hints.push('photorealistic, natural skin texture, realistic eyes, high detail');
+    }
+    if (/(злоб|агресс|напряж|dramatic|cinematic)/.test(t)) {
+        hints.push('cinematic lighting, dramatic mood, intense facial expression');
+    }
+    if (/(трамп|putin|путин|president)/.test(t)) {
+        hints.push('recognizable facial features, accurate likeness, professional editorial style');
+    }
+    if (/(на фоне|фон|background)/.test(t)) {
+        hints.push('clean background separation, strong subject focus');
+    }
+    return hints;
+}
+
+function buildEnhancedImagePrompt(userPrompt = '') {
+    const clean = String(userPrompt || '').trim().replace(/\s+/g, ' ');
+    const qualityBase = [
+        'Ultra detailed composition',
+        'balanced framing',
+        'high dynamic range',
+        'sharp focus on primary subjects',
+        'no visual artifacts',
+        'no extra fingers or distorted anatomy',
+        'natural proportions'
+    ];
+    const styleHints = inferImageStyleHints(clean);
+    return `${clean}. Quality requirements: ${[...qualityBase, ...styleHints].join(', ')}.`;
 }
 function closeImagePreview() {
     const el = document.getElementById('img-preview-overlay');
@@ -539,6 +757,18 @@ function appendAiLiveMessage(initialText = '', animate = true) {
     const textEl = document.getElementById(msgId);
     if (textEl) scheduleMathTypeset(textEl);
     return { wrapper: div, textEl, msgId };
+}
+
+function isImageMessage(message) {
+    return !!(message && (message.type === 'image' || message.imageUrl || message.imageBase64));
+}
+
+function normalizeImageSource(message) {
+    if (!message) return '';
+    if (message.imageBase64) {
+        return `data:${message.imageMimeType || 'image/png'};base64,${message.imageBase64}`;
+    }
+    return String(message.imageUrl || '');
 }
 function updateAiLiveMessage(textEl, text) {
     if (!textEl) return;
@@ -846,17 +1076,17 @@ window.handleFilePicked = async (event) => {
     }
 };
 async function generateImageFromPrompt(prompt) {
+    const enhancedPrompt = buildEnhancedImagePrompt(prompt);
     const res = await fetch(IMAGE_WORKER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, size: '1024x1024' })
+        body: JSON.stringify({ prompt: enhancedPrompt, size: '1024x1024' })
     });
     const data = await res.json();
     if (!res.ok || data.error) {
         const msg = String(data.message || data.error || `HTTP ${res.status}`);
         if (/quota|billing hard limit|429/i.test(msg)) {
-            // Free fallback when OpenAI billing is exhausted.
-            return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?nologo=true&safe=true`;
+            throw new Error('Лимит генерации изображений исчерпан. Пополни биллинг OpenAI и попробуй снова.');
         }
         throw new Error(msg);
     }
@@ -895,8 +1125,11 @@ async function fetchFastWebContext(queryText = '') {
     const q = String(queryText || '').trim();
     if (!q) return '';
     try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 900);
         const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q.slice(0, 180))}&format=json&no_html=1&skip_disambig=1&no_redirect=1`;
-        const res = await fetch(url, { method: 'GET' });
+        const res = await fetch(url, { method: 'GET', signal: controller.signal });
+        clearTimeout(timer);
         if (!res.ok) return '';
         const data = await res.json();
         const lines = [];
@@ -911,6 +1144,14 @@ async function fetchFastWebContext(queryText = '') {
     } catch {
         return '';
     }
+}
+
+function shouldUseFastWebContext(userText = '') {
+    const t = String(userText || '').trim().toLowerCase();
+    if (!t) return false;
+    if (t.length < 12) return false;
+    if (/(привет|как дела|спасибо|шутк|поздрав|напомни|перефразируй|переведи)/i.test(t)) return false;
+    return /(кто|что|когда|где|почему|сколько|новост|факт|истор|страна|войн|президент|столица|курс|дата|событ)/i.test(t);
 }
 
 // ── SEND ──
@@ -933,7 +1174,12 @@ function buildChatExportText(format = 'txt') {
     lines.push('');
     for (const item of chatHistory) {
         const role = item.role === 'user' ? 'Пользователь' : 'WorldAI';
-        const content = String(item.content || '').trim();
+        let content = String(item.content || '').trim();
+        if (isImageMessage(item)) {
+            const src = normalizeImageSource(item);
+            const prompt = String(item.imagePrompt || '').trim();
+            content = `Изображение: ${prompt || 'без подписи'}${src ? `\nСсылка: ${src}` : ''}`;
+        }
         if (!content) continue;
         if (format === 'md') {
             lines.push(`### ${role}`);
@@ -1001,8 +1247,12 @@ async function sendMessage() {
     const text = input.value.trim();
     const hasAttachment = !!pendingAttachment;
     if (!text && !hasAttachment) return;
+    const shouldGenerateImageByIntent = imageModeEnabled || (!hasAttachment && isLikelyImagePrompt(text));
+    const quotaType = shouldGenerateImageByIntent ? 'image' : 'chat';
+    if (!await checkUsageLimit(quotaType)) return;
     input.value = ''; input.style.height = 'auto';
-    isLoading = true; document.getElementById('send-btn').disabled = true;
+    isLoading = true;
+    setSendButtonState(true);
     const userTextForHistory = hasAttachment
         ? (text ? `${text}\n\n📎 Документ: ${pendingAttachment.name}` : `📎 Документ: ${pendingAttachment.name}\nСделай краткое резюме и ключевые выводы.`)
         : text;
@@ -1040,9 +1290,16 @@ async function sendMessage() {
             if (generationId !== activeGenerationId) return;
             removeTyping();
             appendImageMessage(imageUrl, text);
-            chatHistory.push({ role: 'assistant', content: `[Изображение сгенерировано по запросу: ${text}]` });
+            chatHistory.push({
+                role: 'assistant',
+                type: 'image',
+                imageUrl,
+                imagePrompt: text,
+                content: `[Изображение: ${text}]`
+            });
             const firstUserImg = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserImg?.content || text, chatHistory);
+            await consumeUsage('image');
             setImageMode(false);
             finishSendState(generationId, input);
             return;
@@ -1059,6 +1316,7 @@ async function sendMessage() {
             chatHistory.push({ role: 'assistant', content: safeDocReply });
             const firstUserDoc = chatHistory.find(m => m.role === 'user');
             await saveSession(firstUserDoc?.content || userTextForHistory, chatHistory);
+            await consumeUsage('chat');
             window.clearAttachment();
             finishSendState(generationId, input);
             return;
@@ -1086,7 +1344,7 @@ async function sendMessage() {
         };
 
         const preparedMessages = [{ role: 'system', content: systemPrompt }, ...contextMessages];
-        if (mdl.mode === 'fast') {
+        if (mdl.mode === 'fast' && shouldUseFastWebContext(userTextForHistory)) {
             const webContext = await fetchFastWebContext(userTextForHistory);
             if (webContext) {
                 preparedMessages.splice(1, 0, {
@@ -1121,6 +1379,7 @@ async function sendMessage() {
         chatHistory.push({ role: 'assistant', content: reply });
         const firstUser = chatHistory.find(m => m.role === 'user');
         await saveSession(firstUser?.content || userTextForHistory, chatHistory);
+        await consumeUsage('chat');
     } catch (err) {
         if (generationId !== activeGenerationId) return;
         removeTyping();
@@ -1156,6 +1415,7 @@ if (localStorage.getItem('theme') === 'light') {
     setTimeout(() => { const b = document.getElementById('theme-btn'); if(b) b.textContent = '🌑 Тёмная тема'; }, 100);
 }
 setTimeout(() => applySectionMotion('sec-ai'), 120);
+setTimeout(() => setSendButtonState(false), 60);
 
 // ── COPY ──
 window.copyMsg = (id) => {
@@ -1284,7 +1544,9 @@ function collectProfileForm() {
     const interests = document.getElementById('profile-interests')?.value?.trim() || '';
     const goals = document.getElementById('profile-goals')?.value?.trim() || '';
     const tone = document.getElementById('profile-tone')?.value || 'friendly';
-    return { name, age, about, interests, goals, tone };
+    const plan = document.getElementById('profile-plan')?.value || 'free';
+    const avatarDataUrl = profileAvatarDraft || '';
+    return { name, age, about, interests, goals, tone, plan, avatarDataUrl };
 }
 
 function populateProfileForm() {
@@ -1296,6 +1558,10 @@ function populateProfileForm() {
     set('profile-interests', p.interests);
     set('profile-goals', p.goals);
     set('profile-tone', p.tone || 'friendly');
+    set('profile-plan', PLAN_LIMITS[p.plan] ? p.plan : 'free');
+    profileAvatarDraft = p.avatarDataUrl || '';
+    renderProfileAvatarPreview();
+    renderUsageWallet();
 }
 
 function renderProfilePreview() {
@@ -1314,11 +1580,53 @@ function renderProfilePreview() {
 О себе: ${p.about || 'не заполнено'}
 Интересы: ${p.interests || 'не заполнено'}
 Цели: ${p.goals || 'не заполнено'}
-Стиль ответов ИИ: ${toneMap[p.tone] || toneMap.friendly}`;
+Стиль ответов ИИ: ${toneMap[p.tone] || toneMap.friendly}
+План: ${(PLAN_LIMITS[p.plan] ? p.plan : 'free').toUpperCase()}`;
+}
+
+function convertImageFileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Не удалось прочитать файл.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadImageElement(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Не удалось обработать изображение.'));
+        img.src = src;
+    });
+}
+
+async function normalizeAvatarImage(file) {
+    if (!file) return '';
+    if (!String(file.type || '').startsWith('image/')) {
+        throw new Error('Выбери файл изображения.');
+    }
+    if (file.size > 4 * 1024 * 1024) {
+        throw new Error('Файл слишком большой. Максимум 4 MB.');
+    }
+    const rawDataUrl = await convertImageFileToDataUrl(file);
+    const image = await loadImageElement(rawDataUrl);
+    const maxSide = 320;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return rawDataUrl;
+    ctx.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.88);
 }
 
 function bindProfileLivePreview() {
-    const ids = ['profile-name', 'profile-age', 'profile-about', 'profile-interests', 'profile-goals', 'profile-tone'];
+    const ids = ['profile-name', 'profile-age', 'profile-about', 'profile-interests', 'profile-goals', 'profile-tone', 'profile-plan'];
     ids.forEach((id) => {
         const el = document.getElementById(id);
         if (!el || el.dataset.bound === '1') return;
@@ -1327,6 +1635,7 @@ function bindProfileLivePreview() {
             const prev = userProfile;
             userProfile = { ...DEFAULT_PROFILE, ...draft };
             renderProfilePreview();
+            renderUsageWallet();
             userProfile = prev;
         };
         el.addEventListener('input', handler);
@@ -1347,6 +1656,7 @@ window.saveProfileFromForm = async () => {
 
 window.resetProfileForm = () => {
     populateProfileForm();
+    renderProfilePreview();
     setProfileStatus('Изменения сброшены.');
 };
 
@@ -1355,6 +1665,31 @@ window.editProfile = () => {
     populateProfileForm();
     renderProfilePreview();
     setProfileStatus('');
+};
+window.triggerProfileAvatarPicker = () => {
+    document.getElementById('profile-avatar-input')?.click();
+};
+window.removeProfileAvatar = () => {
+    profileAvatarDraft = '';
+    const fileEl = document.getElementById('profile-avatar-input');
+    if (fileEl) fileEl.value = '';
+    renderProfileAvatarPreview();
+    setProfileStatus('Аватар будет удалён после сохранения профиля.');
+};
+window.handleProfileAvatarPicked = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    try {
+        profileAvatarDraft = await normalizeAvatarImage(file);
+        renderProfileAvatarPreview();
+        setProfileStatus('Аватар выбран. Нажми "Сохранить профиль".');
+    } catch (error) {
+        setProfileStatus(error?.message || 'Не удалось загрузить аватар.', true);
+    }
+};
+window.refreshUsageWallet = async () => {
+    await ensureUsageLoaded(true);
+    setProfileStatus('Лимиты обновлены.');
 };
 bindProfileLivePreview();
 
@@ -1701,6 +2036,71 @@ window.searchCountry = async () => {
 // ── MAP ──
 let historicalLayer = null;
 let currentYear = 2000;
+let mapScenario = {
+    query: '',
+    summary: '',
+    consequences: [],
+    impactedCountries: [],
+    normalizedCountries: new Set()
+};
+
+function normalizeCountryToken(name = '') {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getFeatureCountryName(feature = {}) {
+    return feature?.properties?.NAME
+        || feature?.properties?.name
+        || feature?.properties?.ADMIN
+        || feature?.properties?.CNTRY_NAME
+        || '';
+}
+
+function isScenarioCountry(featureName = '') {
+    if (!mapScenario.normalizedCountries.size) return false;
+    const source = normalizeCountryToken(featureName);
+    if (!source) return false;
+    for (const token of mapScenario.normalizedCountries) {
+        if (!token) continue;
+        if (source === token) return true;
+        if (source.includes(token) || token.includes(source)) return true;
+    }
+    return false;
+}
+
+function getMapFeatureStyle(feature) {
+    const highlighted = isScenarioCountry(getFeatureCountryName(feature));
+    if (highlighted) {
+        return {
+            fillColor: '#1d5f39',
+            fillOpacity: 0.82,
+            color: '#7dffb9',
+            weight: 1.4,
+            opacity: 0.95
+        };
+    }
+    return {
+        fillColor: '#0a1a0a',
+        fillOpacity: 0.6,
+        color: '#00e676',
+        weight: 1,
+        opacity: 0.8
+    };
+}
+
+function refreshHistoricalLayerStyles() {
+    if (!historicalLayer) return;
+    historicalLayer.eachLayer((layer) => {
+        try {
+            if (!layer?.feature) return;
+            layer.setStyle(getMapFeatureStyle(layer.feature));
+        } catch {}
+    });
+}
 
 function initMap() {
     if (map) { setTimeout(() => map.invalidateSize(), 300); return; }
@@ -1757,17 +2157,20 @@ window.loadYear = async (year) => {
         }
         if (!data) throw lastErr || new Error('Failed to load map data');
         historicalLayer = L.geoJSON(data, {
-            style: () => ({
-                fillColor: '#0a1a0a',
-                fillOpacity: 0.6,
-                color: '#00e676',
-                weight: 1,
-                opacity: 0.8
-            }),
+            style: (feature) => getMapFeatureStyle(feature),
             onEachFeature: (feature, layer) => {
-                const name = feature.properties.NAME || feature.properties.name || feature.properties.ADMIN || feature.properties.CNTRY_NAME || '';
-                layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.85, fillColor: '#00e676' }); });
-                layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.6, fillColor: '#0a1a0a' }); });
+                const name = getFeatureCountryName(feature);
+                layer.on('mouseover', function() {
+                    const base = getMapFeatureStyle(feature);
+                    this.setStyle({
+                        ...base,
+                        fillOpacity: Math.min(0.9, (base.fillOpacity || 0.6) + 0.15),
+                        fillColor: '#00e676'
+                    });
+                });
+                layer.on('mouseout', function() {
+                    this.setStyle(getMapFeatureStyle(feature));
+                });
                 layer.on('click', function(e) {
                     if (!name) return;
                     showCountryHistory(name, e.latlng);
@@ -1826,6 +2229,104 @@ function addCountryLabels(geojson, map) {
         } catch(e) {}
     });
 }
+
+function setMapWhatIfStatus(text = '', isError = false) {
+    const el = document.getElementById('map-whatif-status');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isError ? '#ff7a7a' : '#9d9d9d';
+}
+
+function renderMapWhatIfResult() {
+    const box = document.getElementById('map-whatif-result');
+    if (!box) return;
+    if (!mapScenario.summary) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    const list = (mapScenario.consequences || [])
+        .slice(0, 5)
+        .map((item) => `<li>${escHtml(String(item || ''))}</li>`)
+        .join('');
+    const countries = (mapScenario.impactedCountries || []).slice(0, 12).join(', ');
+    box.innerHTML = `
+        <div><strong>${escHtml(mapScenario.query)}</strong></div>
+        <div style="margin-top:6px">${escHtml(mapScenario.summary)}</div>
+        ${list ? `<ul>${list}</ul>` : ''}
+        ${countries ? `<div style="margin-top:8px;color:#8fdcb6"><strong>Подсветка на карте:</strong> ${escHtml(countries)}</div>` : ''}
+    `;
+    box.style.display = 'block';
+}
+
+function applyScenarioCountries(countries = []) {
+    mapScenario.impactedCountries = Array.from(new Set((countries || [])
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)));
+    mapScenario.normalizedCountries = new Set(mapScenario.impactedCountries.map((x) => normalizeCountryToken(x)).filter(Boolean));
+    refreshHistoricalLayerStyles();
+}
+
+window.clearWhatIfScenario = () => {
+    mapScenario = {
+        query: '',
+        summary: '',
+        consequences: [],
+        impactedCountries: [],
+        normalizedCountries: new Set()
+    };
+    const input = document.getElementById('map-whatif-input');
+    if (input) input.value = '';
+    setMapWhatIfStatus('Сценарий очищен.');
+    renderMapWhatIfResult();
+    refreshHistoricalLayerStyles();
+};
+
+window.runWhatIfScenario = async () => {
+    if (!currentUser) return;
+    const inputEl = document.getElementById('map-whatif-input');
+    const raw = String(inputEl?.value || '').trim();
+    if (raw.length < 8) {
+        setMapWhatIfStatus('Опиши сценарий подробнее (минимум 8 символов).', true);
+        return;
+    }
+    if (!await checkUsageLimit('whatif', false)) {
+        setMapWhatIfStatus('Лимит What-if на сегодня исчерпан. Обнови план в профиле.', true);
+        return;
+    }
+    setMapWhatIfStatus('Считаю альтернативный сценарий...');
+    try {
+        const prompt = `
+Ты симулируешь альтернативный ход истории.
+Верни только JSON без пояснений:
+{
+  "summary": "2-3 предложения на русском",
+  "consequences": ["пункт 1", "пункт 2", "пункт 3"],
+  "impactedCountries": ["страна1", "страна2", "страна3"]
+}
+Условия:
+- сценарий: "${raw}"
+- текущий год на карте: ${currentYear}
+- отвечай реалистично, без фантастики.
+- impactedCountries: максимум 10 стран, существительные.
+`.trim();
+        const json = await requestGroqJson(prompt, 1000, 1);
+        const summary = String(json?.summary || '').trim();
+        const consequences = Array.isArray(json?.consequences) ? json.consequences.map((x) => String(x || '').trim()).filter(Boolean) : [];
+        const impactedCountries = Array.isArray(json?.impactedCountries) ? json.impactedCountries.map((x) => String(x || '').trim()).filter(Boolean) : [];
+        if (!summary) throw new Error('Модель вернула пустой сценарий.');
+
+        mapScenario.query = raw;
+        mapScenario.summary = summary;
+        mapScenario.consequences = consequences.slice(0, 6);
+        applyScenarioCountries(impactedCountries.slice(0, 10));
+        renderMapWhatIfResult();
+        await consumeUsage('whatif');
+        setMapWhatIfStatus(`Готово. Осталось ${Math.max(0, getUsageRow('whatif').limit - getUsageRow('whatif').used)} запусков сегодня.`);
+    } catch (e) {
+        setMapWhatIfStatus(`Ошибка симуляции: ${e?.message || e}`, true);
+    }
+};
 
 
 // ── MAP COUNTRY HISTORY PANEL ──
