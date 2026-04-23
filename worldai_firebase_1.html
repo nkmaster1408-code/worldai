@@ -180,6 +180,17 @@
             <button class="map-action-btn" onclick="setTab('sec-ai','nav-ai')">💬 Чат</button>
             <button class="map-action-btn" onclick="toggleSidebar()">☰ Меню</button>
         </div>
+        <div id="map-whatif-panel" class="map-whatif-panel">
+            <div class="map-whatif-title">What-if Симулятор</div>
+            <div class="map-whatif-sub">Проверь альтернативный сценарий и подсвети страны на карте.</div>
+            <textarea id="map-whatif-input" placeholder="Например: Что если СССР не распался в 1991 году?"></textarea>
+            <div class="map-whatif-actions">
+                <button type="button" class="map-whatif-run" onclick="runWhatIfScenario()">Смоделировать</button>
+                <button type="button" class="map-whatif-clear" onclick="clearWhatIfScenario()">Очистить</button>
+            </div>
+            <div id="map-whatif-status" class="map-whatif-status"></div>
+            <div id="map-whatif-result" class="map-whatif-result"></div>
+        </div>
         <div id="map"></div>
     </section>
     <section id="sec-search" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
@@ -391,6 +402,15 @@
             <div class="profile-card">
                 <h2>Профиль пользователя</h2>
                 <p class="profile-sub">Эти данные помогают WorldAI отвечать точнее и более лично.</p>
+                <div class="profile-avatar-row">
+                    <img id="profile-avatar-preview" class="profile-avatar-preview" src="" alt="Аватар профиля">
+                    <div class="profile-avatar-tools">
+                        <button type="button" class="profile-avatar-btn" onclick="triggerProfileAvatarPicker()">Сменить аватар</button>
+                        <button type="button" class="profile-avatar-btn danger" onclick="removeProfileAvatar()">Убрать</button>
+                        <input id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp" onchange="handleProfileAvatarPicked(event)" style="display:none">
+                        <span class="profile-avatar-hint">PNG/JPG/WEBP, до 4 MB</span>
+                    </div>
+                </div>
                 <div class="profile-grid">
                     <label class="profile-field">
                         <span>Никнейм</span>
@@ -422,6 +442,14 @@
                         <option value="deep">Глубоко и подробно</option>
                     </select>
                 </label>
+                <label class="profile-field">
+                    <span>План аккаунта</span>
+                    <select id="profile-plan">
+                        <option value="free">Free</option>
+                        <option value="plus">Plus</option>
+                        <option value="pro">Pro</option>
+                    </select>
+                </label>
                 <div class="profile-actions">
                     <button class="profile-save-btn" onclick="saveProfileFromForm()">Сохранить профиль</button>
                     <button class="profile-reset-btn" onclick="resetProfileForm()">Сбросить</button>
@@ -431,6 +459,15 @@
             <div class="profile-card profile-preview">
                 <h3>Как ИИ видит тебя</h3>
                 <div id="profile-preview-text" class="profile-preview-text">Заполни профиль, чтобы увидеть персонализацию.</div>
+                <div class="usage-wallet-card">
+                    <div class="usage-wallet-title">Лимиты и кошелек</div>
+                    <div id="usage-wallet" class="usage-wallet">
+                        <div class="usage-line"><span>Чат / день</span><span id="usage-chat">—</span></div>
+                        <div class="usage-line"><span>Изображения / день</span><span id="usage-image">—</span></div>
+                        <div class="usage-line"><span>What-if карта / день</span><span id="usage-whatif">—</span></div>
+                    </div>
+                    <button class="profile-reset-btn usage-refresh-btn" onclick="refreshUsageWallet()">Обновить лимиты</button>
+                </div>
             </div>
         </div>
     </section>
