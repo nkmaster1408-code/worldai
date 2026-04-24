@@ -1,7 +1,7 @@
 ﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithCredential, getRedirectResult, onAuthStateChanged, signOut as fbSignOut }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, collectionGroup, doc, setDoc, getDocs, deleteDoc, orderBy, query }
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, orderBy, query }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -93,8 +93,24 @@ const usageState = {
 };
 let adminPanelOpen = false;
 let adminPanelLoading = false;
-const ADMIN_PANEL_PASSWORD = 'nkmaster228';
-let adminPanelUnlocked = false;
+
+async function getIdTokenSafe() {
+    try {
+        if (!currentUser || typeof currentUser.getIdToken !== 'function') return '';
+        return await currentUser.getIdToken();
+    } catch {
+        return '';
+    }
+}
+
+async function authedFetch(url, options = {}) {
+    const opts = { ...(options || {}) };
+    const headers = { ...(opts.headers || {}) };
+    const token = await getIdTokenSafe();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    opts.headers = headers;
+    return fetch(url, opts);
+}
 const PROMPT_TEMPLATES = {
     simple: (topic) => `Объясни простыми словами${topic ? `: ${topic}` : ' выбранную тему'}. Структура: 1) суть, 2) пример из жизни, 3) мини-вывод.`,
     plan: (topic) => `Сделай пошаговый план${topic ? ` по теме "${topic}"` : ''} на 7 дней. Формат: день -> задача -> результат.`,
@@ -468,73 +484,13 @@ async function loadAdminPanelUsers() {
     adminPanelLoading = true;
     setAdminPanelStatus('Загружаю пользователей...');
     try {
-        const today = getLocalDateKey();
-        const profilesSnap = await getDocs(collectionGroup(db, 'profile'));
-        const usageSnap = await getDocs(collectionGroup(db, 'usage'));
-        const sessionsSnap = await getDocs(collectionGroup(db, 'sessions'));
-
-        const profileMap = new Map();
-        profilesSnap.forEach((snap) => {
-            if (snap.id !== 'data') return;
-            const uid = snap.ref?.parent?.parent?.id || '';
-            if (!uid) return;
-            const p = snap.data() || {};
-            profileMap.set(uid, {
-                uid,
-                name: String(p.name || 'Без ника'),
-                avatar: String(p.avatarDataUrl || ''),
-                plan: PLAN_LIMITS[p.plan] ? p.plan : 'free'
-            });
-        });
-
-        const usageMap = new Map();
-        usageSnap.forEach((snap) => {
-            if (snap.id !== 'daily') return;
-            const uid = snap.ref?.parent?.parent?.id || '';
-            if (!uid) return;
-            const u = snap.data() || {};
-            const isToday = String(u.dateKey || '') === today;
-            usageMap.set(uid, {
-                chatUsed: isToday ? Number(u.chatUsed || 0) : 0,
-                imageUsed: isToday ? Number(u.imageUsed || 0) : 0,
-                whatIfUsed: isToday ? Number(u.whatIfUsed || 0) : 0,
-                updatedAt: Number(u.updatedAt || 0)
-            });
-        });
-
-        const sessionLastMap = new Map();
-        sessionsSnap.forEach((snap) => {
-            const uid = snap.ref?.parent?.parent?.id || '';
-            if (!uid) return;
-            const s = snap.data() || {};
-            const ts = Number(s.updatedAt || 0);
-            if (!Number.isFinite(ts) || ts <= 0) return;
-            const prev = Number(sessionLastMap.get(uid) || 0);
-            if (ts > prev) sessionLastMap.set(uid, ts);
-        });
-
-        const allUids = new Set([...profileMap.keys(), ...usageMap.keys(), ...sessionLastMap.keys()]);
-        const rows = [...allUids].map((uid) => {
-            const p = profileMap.get(uid) || { name: `User ${uid.slice(0, 6)}`, avatar: '', plan: 'free' };
-            const u = usageMap.get(uid) || { chatUsed: 0, imageUsed: 0, whatIfUsed: 0, updatedAt: 0 };
-            const lastActivityTs = Math.max(Number(u.updatedAt || 0), Number(sessionLastMap.get(uid) || 0));
-            return {
-                uid,
-                name: p.name,
-                avatar: p.avatar,
-                plan: p.plan,
-                chatUsed: u.chatUsed,
-                imageUsed: u.imageUsed,
-                whatIfUsed: u.whatIfUsed,
-                totalUsed: u.chatUsed + u.imageUsed + u.whatIfUsed,
-                lastActivityTs
-            };
-        }).sort((a, b) =>
-            b.totalUsed - a.totalUsed
-            || (Number(b.lastActivityTs || 0) - Number(a.lastActivityTs || 0))
-            || a.name.localeCompare(b.name, 'ru')
-        );
-
+        const res = await authedFetch(`${BACKEND_BASE}/api/admin/users?dateKey=${encodeURIComponent(getLocalDateKey())}`, { method: 'GET' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            const msg = String(data.message || data.error || `HTTP ${res.status}`);
+            throw new Error(msg);
+        }
+        const rows = Array.isArray(data.rows) ? data.rows : [];
         renderAdminUsersList(rows);
         setAdminPanelStatus(`Пользователей: ${rows.length} · обновлено ${new Date().toLocaleTimeString()}`);
     } catch (e) {
@@ -547,15 +503,6 @@ async function loadAdminPanelUsers() {
 
 window.openAdminPanel = async () => {
     if (!currentUser) return;
-    if (!adminPanelUnlocked) {
-        const entered = prompt('Введите пароль админ-панели:');
-        if (entered === null) return;
-        if (String(entered).trim() !== ADMIN_PANEL_PASSWORD) {
-            alert('Неверный пароль.');
-            return;
-        }
-        adminPanelUnlocked = true;
-    }
     const overlay = document.getElementById('admin-panel-overlay');
     if (!overlay) return;
     overlay.style.display = 'flex';
@@ -1211,9 +1158,9 @@ function scheduleMathTypeset(root) {
     }, 120);
 }
 async function fetchReplyWithStreaming(url, payload, provider, onDelta) {
-    const res = await fetch(url, {
+    const res = await authedFetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json' },
         body: JSON.stringify(payload)
     });
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
@@ -1390,7 +1337,7 @@ window.handleFilePicked = async (event) => {
 };
 async function generateImageFromPrompt(prompt) {
     const enhancedPrompt = buildEnhancedImagePrompt(prompt);
-    const res = await fetch(IMAGE_WORKER, {
+    const res = await authedFetch(IMAGE_WORKER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: enhancedPrompt, size: '1024x1024' })
@@ -1409,7 +1356,7 @@ async function generateImageFromPrompt(prompt) {
 }
 async function analyzeDocumentWithAI(question, modelName, providerName = 'openai') {
     if (!pendingAttachment) throw new Error('Сначала прикрепи документ');
-    const res = await fetch(DOC_ANALYZE_WORKER, {
+    const res = await authedFetch(DOC_ANALYZE_WORKER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1816,7 +1763,7 @@ window.speakMsg = async (id, btn) => {
 
     try {
         for (const cfg of ttsCandidates) {
-            const res = await fetch('https://worldai-backend.onrender.com/api/tts', {
+            const res = await authedFetch(`${BACKEND_BASE}/api/tts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, ...cfg })
@@ -2205,7 +2152,7 @@ window.compareCountries = async () => {
     const [infoA, infoB, aiRes] = await Promise.all([
         fetchCountryStats(a),
         fetchCountryStats(b),
-        fetch(GROQ_WORKER, {
+        authedFetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 provider: 'groq',
@@ -2221,10 +2168,12 @@ window.compareCountries = async () => {
     // Отображаем карточки сравнения
     if (infoA || infoB) {
         const makeCol = (info, name) => {
-            if (!info) return `<div class="compare-col"><div class="compare-col-title">${name}</div><div style="color:var(--muted);font-size:13px;">Данные не найдены</div></div>`;
+            const safeName = escHtml(name);
+            if (!info) return `<div class="compare-col"><div class="compare-col-title">${safeName}</div><div style="color:var(--muted);font-size:13px;">Данные не найдены</div></div>`;
+            const safeTitle = escHtml(String(info.name?.common || name));
             return `<div class="compare-col">
                 <span class="flag-big">${info.flag || '🌐'}</span>
-                <div class="compare-col-title">${info.name?.common || name}</div>
+                <div class="compare-col-title">${safeTitle}</div>
                 <div class="compare-stat"><span style="color:var(--muted)">👥 Население</span><span style="font-weight:700">${formatPop(info.population)}</span></div>
                 <div class="compare-stat"><span style="color:var(--muted)">📐 Площадь</span><span style="font-weight:700">${formatArea(info.area)}</span></div>
                 <div class="compare-stat"><span style="color:var(--muted)">🏙️ Столица</span><span style="font-weight:700">${info.capital?.[0] || '—'}</span></div>
@@ -2245,7 +2194,7 @@ window.compareCountries = async () => {
         document.getElementById('compare-result-text').innerHTML = mdToHtml(text);
     } catch(e) {
         result.style.display = 'block';
-        document.getElementById('compare-result-text').innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
+        document.getElementById('compare-result-text').innerHTML = `<span style="color:var(--danger)">Ошибка: ${escHtml(e?.message || 'Не удалось сравнить')}</span>`;
     }
 };
 
@@ -2304,7 +2253,7 @@ correct — индекс правильного ответа (0-3).
 - Вопрос должен быть интересным и нетривиальным, без банальных дат "когда началась ВОВ".
 - Пиши на русском языке.`.trim();
 
-    const res = await fetch(GROQ_WORKER, {
+    const res = await authedFetch(GROQ_WORKER, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             provider: 'groq',
@@ -2383,7 +2332,8 @@ window.startQuiz = async () => {
                 const expEl = document.getElementById('quiz-explanation');
                 const expText = document.getElementById('quiz-exp-text');
                 expEl.style.display = 'block';
-                expText.innerHTML = (i === correct ? '✅ ' : '❌ ') + '<strong>' + (i === correct ? 'Правильно!' : 'Неверно!') + '</strong> ' + q.explanation;
+                const safeExplanation = escHtml(String(q.explanation || '').trim()).replace(/\n/g, '<br>');
+                expText.innerHTML = (i === correct ? '✅ ' : '❌ ') + '<strong>' + (i === correct ? 'Правильно!' : 'Неверно!') + '</strong> ' + safeExplanation;
                 // Счёт
                 scoreBar.style.display = 'flex';
                 document.getElementById('quiz-score-text').textContent = quizScore + ' / ' + quizTotal;
@@ -2414,7 +2364,7 @@ window.searchCountry = async () => {
     loading.style.display = 'block';
     result.style.display = 'none';
     try {
-        const res = await fetch(GROQ_WORKER, {
+        const res = await authedFetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 provider: 'groq',
@@ -2435,7 +2385,7 @@ window.searchCountry = async () => {
     } catch(e) {
         loading.style.display = 'none';
         result.style.display = 'block';
-        resultText.innerHTML = `<span style="color:var(--danger)">Ошибка: ${e.message}</span>`;
+        resultText.innerHTML = `<span style="color:var(--danger)">Ошибка: ${escHtml(e?.message || 'Не удалось загрузить')}</span>`;
     }
 };
 
@@ -2740,10 +2690,11 @@ let mapPopup = null;
 
 async function showCountryHistory(countryName, latlng) {
     if (mapPopup) { map.closePopup(mapPopup); }
-    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + countryName + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
+    const safeCountry = escHtml(countryName);
+    const loadingHtml = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px"><div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div><b style="font-size:15px;color:#111">' + safeCountry + '</b><div style="margin-top:10px;color:#555;font-size:13px;">⏳ Загружаю историю...</div></div>';
     mapPopup = L.popup({ maxWidth: 360 }).setLatLng(latlng).setContent(loadingHtml).openOn(map);
     try {
-        const res = await fetch(GROQ_WORKER, {
+        const res = await authedFetch(GROQ_WORKER, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 provider: 'groq',
@@ -2754,17 +2705,21 @@ async function showCountryHistory(countryName, latlng) {
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-        const text = sanitizeAiText((data.choices?.[0]?.message?.content || 'Нет данных'), countryName)
-            .replace(/\*\*/g,'').replace(/##[^\n]*/g,'').replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
+        const rawText = sanitizeAiText((data.choices?.[0]?.message?.content || 'Нет данных'), countryName)
+            .replace(/\*\*/g,'')
+            .replace(/##[^\n]*/g,'')
+            .replace(/\r/g,'')
+            .trim();
+        const safeText = escHtml(rawText).replace(/\n\n/g,'<br><br>').replace(/\n/g,' ');
         const html = '<div style="font-family:Manrope,sans-serif;padding:6px;min-width:260px;max-width:340px">'
             + '<div style="font-family:Space Mono,monospace;font-size:10px;color:#00e676;letter-spacing:2px;margin-bottom:8px;">◆ WORLDAI</div>'
-            + '<b style="font-size:15px;color:#111">' + countryName + '</b>'
-            + '<div style="margin-top:10px;font-size:13px;line-height:1.7;color:#333">' + text + '</div>'
+            + '<b style="font-size:15px;color:#111">' + safeCountry + '</b>'
+            + '<div style="margin-top:10px;font-size:13px;line-height:1.7;color:#333">' + safeText + '</div>'
             + '<div style="margin-top:12px"><button onclick="window.setTab(\'sec-search\',\'nav-search\');" style="background:#00e676;color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">Подробнее →</button></div>'
             + '</div>';
         mapPopup.setContent(html);
     } catch(e) {
-        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + countryName + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + e.message + '</span></div>');
+        mapPopup.setContent('<div style="font-family:sans-serif;padding:6px"><b>' + safeCountry + '</b><br><span style="color:red;font-size:12px">Ошибка: ' + escHtml(e?.message || 'Не удалось загрузить') + '</span></div>');
     }
 }
 
@@ -2798,7 +2753,7 @@ async function requestGroqJson(prompt, maxTokens = 1300, retries = 2) {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 22000);
-            const res = await fetch(GROQ_WORKER, {
+            const res = await authedFetch(GROQ_WORKER, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
