@@ -1,7 +1,7 @@
 ﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithCredential, getRedirectResult, onAuthStateChanged, signOut as fbSignOut }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, orderBy, query }
+import { getFirestore, collection, collectionGroup, doc, setDoc, getDocs, deleteDoc, orderBy, query }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -91,6 +91,10 @@ const usageState = {
     whatIfUsed: 0,
     loaded: false
 };
+let adminPanelOpen = false;
+let adminPanelLoading = false;
+const ADMIN_PANEL_PASSWORD = 'nkmaster228';
+let adminPanelUnlocked = false;
 const PROMPT_TEMPLATES = {
     simple: (topic) => `Объясни простыми словами${topic ? `: ${topic}` : ' выбранную тему'}. Структура: 1) суть, 2) пример из жизни, 3) мини-вывод.`,
     plan: (topic) => `Сделай пошаговый план${topic ? ` по теме "${topic}"` : ''} на 7 дней. Формат: день -> задача -> результат.`,
@@ -174,12 +178,16 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('user-badge').style.display = 'flex';
         document.getElementById('user-avatar').src = user.photoURL || AVATAR_PLACEHOLDER;
         document.getElementById('user-name').textContent = user.displayName || user.email;
+        updateAdminPanelButtonVisibility(document.querySelector('.section.active')?.id || '');
         await loadSessions();
         await loadProfile();
     } else {
         currentUser = null;
+        adminPanelUnlocked = false;
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('user-badge').style.display = 'none';
+        window.closeAdminPanel?.();
+        updateAdminPanelButtonVisibility('');
         sessions = [];
         usageState.dateKey = '';
         usageState.chatUsed = 0;
@@ -345,6 +353,133 @@ async function checkUsageLimit(type, showAlert = true) {
     setUsageStatus(msg, true);
     return false;
 }
+
+function updateAdminPanelButtonVisibility(sectionId = '') {
+    const btn = document.getElementById('admin-panel-btn');
+    if (!btn) return;
+    const show = sectionId === 'sec-profile' && !!currentUser;
+    btn.style.display = show ? 'inline-flex' : 'none';
+    if (!show) window.closeAdminPanel?.();
+}
+
+function setAdminPanelStatus(message = '', isError = false) {
+    const el = document.getElementById('admin-panel-status');
+    if (!el) return;
+    el.textContent = message;
+    el.style.color = isError ? 'var(--danger)' : '#999';
+}
+
+function renderAdminUsersList(rows = []) {
+    const list = document.getElementById('admin-panel-list');
+    if (!list) return;
+    if (!rows.length) {
+        list.innerHTML = '<div class="admin-empty">Пользователи пока не найдены.</div>';
+        return;
+    }
+    const escAttr = (value) => String(value || '').replace(/"/g, '&quot;');
+    list.innerHTML = rows.map((row) => `
+        <div class="admin-user-row">
+            <img class="admin-user-avatar" src="${escAttr(row.avatar || AVATAR_PLACEHOLDER)}" alt="">
+            <div>
+                <div class="admin-user-name">${escHtml(row.name)}</div>
+                <div class="admin-user-meta">${escHtml(row.plan.toUpperCase())} · чат ${row.chatUsed}, изображения ${row.imageUsed}, what-if ${row.whatIfUsed}</div>
+            </div>
+            <div class="admin-user-count">${row.totalUsed}</div>
+        </div>
+    `).join('');
+}
+
+async function loadAdminPanelUsers() {
+    if (!currentUser || adminPanelLoading) return;
+    adminPanelLoading = true;
+    setAdminPanelStatus('Загружаю пользователей...');
+    try {
+        const today = getLocalDateKey();
+        const profilesSnap = await getDocs(collectionGroup(db, 'profile'));
+        const usageSnap = await getDocs(collectionGroup(db, 'usage'));
+
+        const profileMap = new Map();
+        profilesSnap.forEach((snap) => {
+            if (snap.id !== 'data') return;
+            const uid = snap.ref?.parent?.parent?.id || '';
+            if (!uid) return;
+            const p = snap.data() || {};
+            profileMap.set(uid, {
+                uid,
+                name: String(p.name || 'Без ника'),
+                avatar: String(p.avatarDataUrl || ''),
+                plan: PLAN_LIMITS[p.plan] ? p.plan : 'free'
+            });
+        });
+
+        const usageMap = new Map();
+        usageSnap.forEach((snap) => {
+            if (snap.id !== 'daily') return;
+            const uid = snap.ref?.parent?.parent?.id || '';
+            if (!uid) return;
+            const u = snap.data() || {};
+            const isToday = String(u.dateKey || '') === today;
+            usageMap.set(uid, {
+                chatUsed: isToday ? Number(u.chatUsed || 0) : 0,
+                imageUsed: isToday ? Number(u.imageUsed || 0) : 0,
+                whatIfUsed: isToday ? Number(u.whatIfUsed || 0) : 0
+            });
+        });
+
+        const allUids = new Set([...profileMap.keys(), ...usageMap.keys()]);
+        const rows = [...allUids].map((uid) => {
+            const p = profileMap.get(uid) || { name: `User ${uid.slice(0, 6)}`, avatar: '', plan: 'free' };
+            const u = usageMap.get(uid) || { chatUsed: 0, imageUsed: 0, whatIfUsed: 0 };
+            return {
+                uid,
+                name: p.name,
+                avatar: p.avatar,
+                plan: p.plan,
+                chatUsed: u.chatUsed,
+                imageUsed: u.imageUsed,
+                whatIfUsed: u.whatIfUsed,
+                totalUsed: u.chatUsed + u.imageUsed + u.whatIfUsed
+            };
+        }).sort((a, b) => b.totalUsed - a.totalUsed || a.name.localeCompare(b.name, 'ru'));
+
+        renderAdminUsersList(rows);
+        setAdminPanelStatus(`Пользователей: ${rows.length} · обновлено ${new Date().toLocaleTimeString()}`);
+    } catch (e) {
+        setAdminPanelStatus(`Нет доступа к данным пользователей: ${e?.message || e}`, true);
+        renderAdminUsersList([]);
+    } finally {
+        adminPanelLoading = false;
+    }
+}
+
+window.openAdminPanel = async () => {
+    if (!currentUser) return;
+    if (!adminPanelUnlocked) {
+        const entered = prompt('Введите пароль админ-панели:');
+        if (entered === null) return;
+        if (String(entered).trim() !== ADMIN_PANEL_PASSWORD) {
+            alert('Неверный пароль.');
+            return;
+        }
+        adminPanelUnlocked = true;
+    }
+    const overlay = document.getElementById('admin-panel-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    adminPanelOpen = true;
+    await loadAdminPanelUsers();
+};
+
+window.closeAdminPanel = () => {
+    const overlay = document.getElementById('admin-panel-overlay');
+    if (overlay) overlay.style.display = 'none';
+    adminPanelOpen = false;
+};
+
+window.refreshAdminPanel = async () => {
+    if (!adminPanelOpen) return;
+    await loadAdminPanelUsers();
+};
 
 async function loadProfile() {
     if (!currentUser) return;
@@ -544,6 +679,7 @@ window.setTab = (sectionId, navId) => {
     if (isMobileViewport()) updateSidebarState(false);
     if (sectionId !== 'sec-ai') window.closeToolSheet();
     applySectionMotion(sectionId);
+    updateAdminPanelButtonVisibility(sectionId);
     if (sectionId === 'sec-map') initMap();
     if (sectionId === 'sec-search') { setTimeout(() => document.getElementById('country-input').focus(), 100); }
 };
@@ -1416,6 +1552,7 @@ if (localStorage.getItem('theme') === 'light') {
 }
 setTimeout(() => applySectionMotion('sec-ai'), 120);
 setTimeout(() => setSendButtonState(false), 60);
+setTimeout(() => updateAdminPanelButtonVisibility('sec-ai'), 80);
 
 // ── COPY ──
 window.copyMsg = (id) => {
