@@ -263,14 +263,31 @@ function playUiSound(kind = 'tap') {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = kind === 'error' ? 'sawtooth' : 'triangle';
-        osc.frequency.value = kind === 'error' ? 170 : (kind === 'send' ? 540 : 390);
+        const baseVol = kind === 'error' ? 0.06 : 0.038; // louder than before
         gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(kind === 'error' ? 0.025 : 0.014, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === 'error' ? 0.2 : 0.12));
+
+        if (kind === 'send') {
+            osc.frequency.setValueAtTime(420, now);
+            osc.frequency.exponentialRampToValueAtTime(820, now + 0.08);
+            gain.gain.exponentialRampToValueAtTime(baseVol, now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        } else if (kind === 'error') {
+            osc.frequency.setValueAtTime(260, now);
+            osc.frequency.exponentialRampToValueAtTime(140, now + 0.16);
+            gain.gain.exponentialRampToValueAtTime(baseVol, now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+        } else {
+            // tap
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(480, now + 0.06);
+            gain.gain.exponentialRampToValueAtTime(baseVol, now + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
+        }
+
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
-        osc.stop(now + (kind === 'error' ? 0.2 : 0.12));
+        osc.stop(now + (kind === 'error' ? 0.22 : 0.14));
     } catch {}
 }
 
@@ -1097,12 +1114,92 @@ function normalizeMathMarkup(text = '') {
     return out.trim();
 }
 
+function shouldAllowLatin(userContextText = '') {
+    const t = String(userContextText || '').toLowerCase();
+    if (!t) return false;
+    // Allow Latin for code/tech contexts or explicit request.
+    if (/(english|английск|на англ|на англий|перевед|translate)/i.test(t)) return true;
+    if (/(\bhtml\b|\bcss\b|\bjs\b|\bjson\b|\bapi\b|\bhttp\b|\burl\b|\bsql\b|\bpdf\b|\bpng\b|\bjpg\b|\bjpeg\b|\bwebp\b|\bnode\b|\breact\b|\bvue\b|\bjava\b|\bkotlin\b|\bswift\b|\bgradle\b)/i.test(t)) return true;
+    if (/[`]/.test(t)) return true;
+    return false;
+}
+
+function stripUnexpectedLatin(text = '') {
+    // Remove/replace long Latin "filler" words while keeping short acronyms.
+    const allow = new Set([
+        'ai','api','http','https','url','json','html','css','js','ts',
+        'sql','pdf','png','jpg','jpeg','webp','ios','android','pwa',
+        'cpu','gpu','ram','ui','ux','tts','git'
+    ]);
+    const replacements = new Map([
+        ['simultaneously', 'одновременно'],
+        ['smallscale', 'малых масштабах'],
+        ['small-scale', 'малых масштабах'],
+        ['mindbending', 'очень необычно'],
+        ['mind-bending', 'очень необычно'],
+        ['basically', 'по сути'],
+        ['actually', 'на самом деле'],
+        ['world', '']
+    ]);
+    let out = String(text || '');
+
+    // Drop markdown-ish underscores around words.
+    out = out.replace(/\b_+([A-Za-zА-Яа-яЁё0-9\-]+)_+\b/g, '$1');
+    out = out.replace(/\b_+([A-Za-zА-Яа-яЁё0-9\-]+)/g, '$1');
+
+    out = out.replace(/[A-Za-z][A-Za-z\-]{2,}/g, (match) => {
+        const lower = match.toLowerCase();
+        if (allow.has(lower)) return match;
+        if (replacements.has(lower)) return replacements.get(lower);
+        // Keep very short tokens (like "WiFi") and mixed-case brands.
+        if (match.length <= 3) return match;
+        return '';
+    });
+    // Normalize leftover double spaces after stripping.
+    out = out.replace(/[ \t]{2,}/g, ' ');
+    out = out.replace(/ \./g, '.').replace(/ ,/g, ',').replace(/ \!/g, '!').replace(/ \?/g, '?');
+    return out.trim();
+}
+
 function sanitizeAiText(text = '', userContextText = '') {
     let out = String(text || '');
     if (!shouldAllowCjk(userContextText)) out = stripUnexpectedCjk(out);
+    if (!shouldAllowLatin(userContextText)) out = stripUnexpectedLatin(out);
     const keepMath = shouldKeepMathMarkup(userContextText) || hasLatexMarkers(out);
     if (!keepMath) out = normalizeMathMarkup(out);
     return out;
+}
+
+function countUserTurns(history = []) {
+    try {
+        return (history || []).filter((m) => m && m.role === 'user').length;
+    } catch {
+        return 0;
+    }
+}
+
+function isLikelyMissingFactcheckText(userText = '') {
+    const t = String(userText || '').trim();
+    if (!t) return false;
+    if (!/(проверь факты|фактчек)/i.test(t)) return false;
+    // If user didn't paste anything substantial, stop early.
+    const afterColon = t.split(':').slice(1).join(':').trim();
+    if (afterColon.length >= 40) return false;
+    if (/\n/.test(t) && t.replace(/\s+/g, '').length >= 120) return false;
+    // Common case: template inserted but no payload.
+    return t.length < 120;
+}
+
+function shouldAskPersonalQuestion(userText = '', history = []) {
+    // Ask rarely: every 5 user messages, only for "normal chat".
+    const nextTurn = countUserTurns(history) + 1;
+    if (nextTurn % 5 !== 0) return false;
+    const t = String(userText || '').trim().toLowerCase();
+    if (t.length < 25) return false;
+    // Don't interrupt utility modes.
+    if (/(проверь факты|фактчек|тренажер|экспорт|квиз|timeline|story mode|карта|поиск стран|сравнение стран)/i.test(t)) return false;
+    if (/(перевед|translate|на англ|на англий)/i.test(t)) return false;
+    return true;
 }
 
 let mathTypesetTimer = null;
@@ -1473,21 +1570,37 @@ async function sendMessage() {
     const userTextForHistory = hasAttachment
         ? (text ? `${text}\n\n📎 Документ: ${pendingAttachment.name}` : `📎 Документ: ${pendingAttachment.name}\nСделай краткое резюме и ключевые выводы.`)
         : text;
+    if (!hasAttachment && isLikelyMissingFactcheckText(userTextForHistory)) {
+        removeTyping();
+        appendMessage('ai', 'Для фактчека нужен текст. Вставь текст/скрин/фото и нажми отправить ещё раз.');
+        isLoading = false;
+        setSendButtonState(false);
+        playUiSound('error');
+        input.value = userTextForHistory + '\n\n';
+        window.autoResize?.(input);
+        input.focus();
+        return;
+    }
     appendMessage('user', userTextForHistory);
     chatHistory.push({ role: 'user', content: userTextForHistory });
     appendTyping();
     try {
         const mathMode = isMathQuery(userTextForHistory);
-        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей), без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его. Иногда задавай вопросы про его жизнь, интересы и как дела.';
+        let systemPrompt = 'Ты персональный ИИ-помощник по имени WorldAI. Отвечай строго на русском языке (кириллицей). Не вставляй английские слова/фразы и латиницу, если пользователь прямо не просит другой язык. Не используй подчёркивания _ как разметку. Без китайских, японских и корейских символов, если пользователь прямо не просит другой язык. ВАЖНО: Никогда не говори что у тебя нет памяти или что ты не помнишь прошлые разговоры — это расстраивает пользователя. Веди себя как личный друг который знает пользователя. Обращайся к пользователю по имени если знаешь его.';
         if (mathMode) {
             systemPrompt += ' Если запрос математический: решай кратко и строго по шагам, не делай лишних рассуждений. Формулы оформляй в LaTeX (используй $...$ и $$...$$), чтобы степени, индексы и дроби отображались корректно.';
         } else {
             systemPrompt += ' Не используй LaTeX-разметку вида \\[ \\], \\( \\), \\frac и т.п.; формулы и шаги пиши обычным текстом. Не используй markdown-разметку без явной просьбы пользователя.';
         }
-        if (userProfile.name) systemPrompt += ' Имя пользователя: ' + userProfile.name + '. Обращайся к нему по имени.';
+        if (shouldAskPersonalQuestion(userTextForHistory, chatHistory)) {
+            systemPrompt += ' В конце ответа задай ОДИН короткий дружелюбный вопрос о жизни/учебе/проектах пользователя. Не чаще одного вопроса.';
+        } else {
+            systemPrompt += ' Не задавай личных вопросов про хобби/жизнь/дела в этом ответе.';
+        }
+        if (userProfile.name) systemPrompt += ' Имя пользователя (точно, не изменяй и не переводи): ' + userProfile.name + '. Обращайся к нему по имени.';
         if (userProfile.age) systemPrompt += ' Возраст пользователя: ' + userProfile.age + '.';
         if (userProfile.about) systemPrompt += ' О пользователе: ' + userProfile.about + '.';
-        if (userProfile.interests) systemPrompt += ' Интересы пользователя: ' + userProfile.interests + '. Учитывай это в разговорах и иногда задавай вопросы по этим темам.';
+        if (userProfile.interests) systemPrompt += ' Интересы пользователя: ' + userProfile.interests + '. Учитывай это в разговорах.';
         if (userProfile.goals) systemPrompt += ' Цели пользователя: ' + userProfile.goals + '. Предлагай шаги и советы, связанные с этими целями.';
         if (userProfile.tone === 'mentor') systemPrompt += ' Стиль общения: как наставник, структурируй и объясняй по шагам.';
         if (userProfile.tone === 'concise') systemPrompt += ' Стиль общения: коротко и по делу, без лишней воды.';
