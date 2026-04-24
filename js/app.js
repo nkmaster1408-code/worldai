@@ -206,6 +206,8 @@ const DEFAULT_PROFILE = {
     interests: '',
     goals: '',
     tone: 'friendly',
+    scene: 'neon',
+    uiSounds: true,
     avatarDataUrl: '',
     plan: 'free'
 };
@@ -234,6 +236,47 @@ function renderProfileAvatarPreview() {
     const previewEl = document.getElementById('profile-avatar-preview');
     if (!previewEl) return;
     previewEl.src = profileAvatarDraft || currentUser?.photoURL || AVATAR_PLACEHOLDER;
+}
+
+function getSceneKey(raw) {
+    const key = String(raw || '').trim().toLowerCase();
+    return ['neon', 'aurora', 'carbon', 'sunset'].includes(key) ? key : 'neon';
+}
+
+function applySceneTheme(sceneKey) {
+    const body = document.body;
+    if (!body) return;
+    const scene = getSceneKey(sceneKey);
+    body.classList.remove('scene-neon', 'scene-aurora', 'scene-carbon', 'scene-sunset');
+    body.classList.add(`scene-${scene}`);
+}
+
+let uiAudioCtx = null;
+function playUiSound(kind = 'tap') {
+    const enabled = !!userProfile.uiSounds;
+    if (!enabled) return;
+    try {
+        if (!uiAudioCtx) uiAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = uiAudioCtx;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = kind === 'error' ? 'sawtooth' : 'triangle';
+        osc.frequency.value = kind === 'error' ? 170 : (kind === 'send' ? 540 : 390);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(kind === 'error' ? 0.025 : 0.014, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === 'error' ? 0.2 : 0.12));
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + (kind === 'error' ? 0.2 : 0.12));
+    } catch {}
+}
+
+function applyVisualPreferences(profile) {
+    const p = { ...DEFAULT_PROFILE, ...profile };
+    applySceneTheme(p.scene);
 }
 
 function getLocalDateKey() {
@@ -525,12 +568,14 @@ async function loadProfile() {
             renderProfilePreview();
             updateUserBadgeIdentity();
             await ensureUsageLoaded(true);
+            applyVisualPreferences(userProfile);
         } else {
             userProfile = { ...DEFAULT_PROFILE };
             populateProfileForm();
             renderProfilePreview();
             updateUserBadgeIdentity();
             await ensureUsageLoaded(true);
+            applyVisualPreferences(userProfile);
             setTimeout(() => askForProfile(), 1000);
         }
     } catch(e) { console.error(e); }
@@ -544,6 +589,7 @@ async function saveProfile(profileData) {
         updateUserBadgeIdentity();
         renderProfilePreview();
         renderUsageWallet();
+        applyVisualPreferences(userProfile);
     } catch(e) { console.error(e); }
 }
 
@@ -709,6 +755,7 @@ window.setTab = (sectionId, navId) => {
     void activeSection.offsetWidth;
     activeSection.classList.add('tab-fade-in');
     activeNav.classList.add('active');
+    playUiSound('tap');
     if (isMobileViewport()) updateSidebarState(false);
     if (sectionId !== 'sec-ai') window.closeToolSheet();
     applySectionMotion(sectionId);
@@ -1422,6 +1469,7 @@ async function sendMessage() {
     input.value = ''; input.style.height = 'auto';
     isLoading = true;
     setSendButtonState(true);
+    playUiSound('send');
     const userTextForHistory = hasAttachment
         ? (text ? `${text}\n\n📎 Документ: ${pendingAttachment.name}` : `📎 Документ: ${pendingAttachment.name}\nСделай краткое резюме и ключевые выводы.`)
         : text;
@@ -1553,6 +1601,7 @@ async function sendMessage() {
         if (generationId !== activeGenerationId) return;
         removeTyping();
         appendMessage('ai', `❌ **Ошибка:** ${err.message}`);
+        playUiSound('error');
     }
     finishSendState(generationId, input);
 }
@@ -1715,8 +1764,10 @@ function collectProfileForm() {
     const goals = document.getElementById('profile-goals')?.value?.trim() || '';
     const tone = document.getElementById('profile-tone')?.value || 'friendly';
     const plan = document.getElementById('profile-plan')?.value || 'free';
+    const scene = document.getElementById('profile-scene')?.value || 'neon';
+    const uiSounds = !!document.getElementById('profile-ui-sounds')?.checked;
     const avatarDataUrl = profileAvatarDraft || '';
-    return { name, age, about, interests, goals, tone, plan, avatarDataUrl };
+    return { name, age, about, interests, goals, tone, plan, scene, uiSounds, avatarDataUrl };
 }
 
 function populateProfileForm() {
@@ -1729,9 +1780,13 @@ function populateProfileForm() {
     set('profile-goals', p.goals);
     set('profile-tone', p.tone || 'friendly');
     set('profile-plan', PLAN_LIMITS[p.plan] ? p.plan : 'free');
+    set('profile-scene', getSceneKey(p.scene));
+    const soundsEl = document.getElementById('profile-ui-sounds');
+    if (soundsEl) soundsEl.checked = !!p.uiSounds;
     profileAvatarDraft = p.avatarDataUrl || '';
     renderProfileAvatarPreview();
     renderUsageWallet();
+    applyVisualPreferences(p);
 }
 
 function renderProfilePreview() {
@@ -1796,7 +1851,7 @@ async function normalizeAvatarImage(file) {
 }
 
 function bindProfileLivePreview() {
-    const ids = ['profile-name', 'profile-age', 'profile-about', 'profile-interests', 'profile-goals', 'profile-tone', 'profile-plan'];
+    const ids = ['profile-name', 'profile-age', 'profile-about', 'profile-interests', 'profile-goals', 'profile-tone', 'profile-plan', 'profile-scene', 'profile-ui-sounds'];
     ids.forEach((id) => {
         const el = document.getElementById(id);
         if (!el || el.dataset.bound === '1') return;
@@ -1806,9 +1861,11 @@ function bindProfileLivePreview() {
             userProfile = { ...DEFAULT_PROFILE, ...draft };
             renderProfilePreview();
             renderUsageWallet();
+            applyVisualPreferences(userProfile);
             userProfile = prev;
         };
         el.addEventListener('input', handler);
+        el.addEventListener('change', handler);
         el.dataset.bound = '1';
     });
 }
@@ -2084,6 +2141,72 @@ let quizScore = 0;
 let quizTotal = 0;
 let quizStreak = 0;
 let quizAnswered = false;
+const QUIZ_RECENT_LIMIT = 18;
+
+function normalizeQuizKey(text = '') {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 140);
+}
+
+function getQuizRecentStorageKey(topic = '') {
+    const key = normalizeQuizKey(topic || 'default') || 'default';
+    return `worldai_quiz_recent_${key}`;
+}
+
+function loadQuizRecent(topic = '') {
+    try {
+        const raw = localStorage.getItem(getQuizRecentStorageKey(topic));
+        const list = JSON.parse(raw || '[]');
+        return Array.isArray(list) ? list.map((x) => String(x || '')).filter(Boolean) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveQuizRecent(topic = '', list = []) {
+    try {
+        const unique = Array.from(new Set((list || []).map((x) => String(x || '')).filter(Boolean)));
+        localStorage.setItem(getQuizRecentStorageKey(topic), JSON.stringify(unique.slice(-QUIZ_RECENT_LIMIT)));
+    } catch {}
+}
+
+async function generateQuizQuestion(topic = '') {
+    const recent = loadQuizRecent(topic);
+    const avoid = recent.slice(-10).join(' | ');
+    const prompt = `Создай один вопрос для исторического квиза на тему: "${topic}".
+Ответь ТОЛЬКО в формате JSON (без markdown, без \`\`\`):
+{
+  "question": "вопрос",
+  "options": ["А) ответ1", "Б) ответ2", "В) ответ3", "Г) ответ4"],
+  "correct": 0,
+  "explanation": "краткое объяснение правильного ответа"
+}
+correct — индекс правильного ответа (0-3).
+Правила:
+- НЕ повторяй вопросы по смыслу и формулировке из этого списка: ${avoid || '(пока пусто)'}.
+- Вопрос должен быть интересным и нетривиальным, без банальных дат "когда началась ВОВ".
+- Пиши на русском языке.`.trim();
+
+    const res = await fetch(GROQ_WORKER, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: 'groq',
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 560
+        })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const raw = data.choices?.[0]?.message?.content || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const q = JSON.parse(clean);
+    return q;
+}
 
 window.startQuiz = async () => {
     const topic = document.getElementById('quiz-topic').value;
@@ -2099,28 +2222,28 @@ window.startQuiz = async () => {
     quizAnswered = false;
 
     try {
-        const res = await fetch(GROQ_WORKER, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: 'groq',
-                model: 'llama-3.3-70b-versatile',
-                messages: [{ role: 'user', content: `Создай один вопрос для исторического квиза на тему: "${topic}".
-Ответь ТОЛЬКО в формате JSON (без markdown, без \`\`\`):
-{
-  "question": "вопрос",
-  "options": ["А) ответ1", "Б) ответ2", "В) ответ3", "Г) ответ4"],
-  "correct": 0,
-  "explanation": "краткое объяснение правильного ответа"
-}
-correct — индекс правильного ответа (0-3). Вопрос должен быть интересным и нетривиальным. Пиши на русском языке.` }],
-                max_tokens: 512
-            })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message);
-        const raw = data.choices?.[0]?.message?.content || '';
-        const clean = raw.replace(/```json|```/g,'').trim();
-        const q = JSON.parse(clean);
+        let q = null;
+        let lastErr = null;
+        const recent = loadQuizRecent(topic);
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                q = await generateQuizQuestion(topic);
+                const qKey = normalizeQuizKey(q?.question || '');
+                if (!qKey) throw new Error('Пустой вопрос');
+                if (recent.includes(qKey)) {
+                    lastErr = new Error('Повтор вопроса');
+                    q = null;
+                    continue;
+                }
+                recent.push(qKey);
+                saveQuizRecent(topic, recent);
+                break;
+            } catch (e) {
+                lastErr = e;
+                q = null;
+            }
+        }
+        if (!q) throw lastErr || new Error('Не удалось сгенерировать вопрос');
 
         loading.style.display = 'none';
         card.style.display = 'block';
