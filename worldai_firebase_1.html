@@ -397,7 +397,8 @@
         </div>
     </section>
 
-    <section id="sec-profile" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;">
+    <section id="sec-profile" class="section" style="flex-direction:column;align-items:center;padding:40px 24px;overflow-y:auto;position:relative;">
+        <button id="admin-panel-btn" class="admin-panel-btn" onclick="openAdminPanel()" style="display:none">Админ</button>
         <div class="profile-shell">
             <div class="profile-card">
                 <h2>Профиль пользователя</h2>
@@ -468,6 +469,22 @@
                     </div>
                     <button class="profile-reset-btn usage-refresh-btn" onclick="refreshUsageWallet()">Обновить лимиты</button>
                 </div>
+            </div>
+        </div>
+        <div id="admin-panel-overlay" class="admin-panel-overlay" style="display:none;" onclick="closeAdminPanel()">
+            <div class="admin-panel-card" onclick="event.stopPropagation()">
+                <div class="admin-panel-head">
+                    <div>
+                        <div class="admin-panel-title">Админ-панель</div>
+                        <div class="admin-panel-sub">Пользователи и запросы за сегодня</div>
+                    </div>
+                    <div class="admin-panel-actions">
+                        <button type="button" class="admin-panel-refresh" onclick="refreshAdminPanel()">Обновить</button>
+                        <button type="button" class="admin-panel-close" onclick="closeAdminPanel()">✕</button>
+                    </div>
+                </div>
+                <div id="admin-panel-status" class="admin-panel-status"></div>
+                <div id="admin-panel-list" class="admin-panel-list"></div>
             </div>
         </div>
     </section>
