@@ -128,13 +128,28 @@
         .msg-user .bubble { background: #1a2a1a; border: 1px solid #2a3a2a; border-radius: 16px 16px 4px 16px; padding: 12px 18px; max-width: 70%; font-size: 14px; line-height: 1.7; color: #ddd; white-space: pre-wrap; }
         .msg-ai { display: flex; flex-direction: column; gap: 8px; }
         .ai-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--green); letter-spacing: 2px; }
-        .ai-text { font-size: 15px; line-height: 1.85; color: var(--text); }
-        .ai-text h1, .ai-text h2, .ai-text h3 { color: var(--green); font-family: 'Space Mono', monospace; margin: 16px 0 8px; font-size: 16px; }
-        .ai-text p { margin-bottom: 10px; }
+        .ai-text {
+            font-size: 15px;
+            line-height: 1.92;
+            color: var(--text);
+            letter-spacing: .012em;
+            text-wrap: pretty;
+            font-variant-numeric: tabular-nums;
+            text-rendering: optimizeLegibility;
+            max-width: 72ch;
+        }
+        .ai-text h1, .ai-text h2, .ai-text h3 {
+            color: var(--green);
+            font-family: 'Space Mono', monospace;
+            margin: 18px 0 10px;
+            font-size: 17px;
+            letter-spacing: .04em;
+        }
+        .ai-text p { margin-bottom: 12px; }
         .ai-text strong { color: #fff; }
         .ai-text em { color: #aaa; }
-        .ai-text ul, .ai-text ol { margin: 8px 0 8px 20px; }
-        .ai-text li { margin-bottom: 4px; }
+        .ai-text ul, .ai-text ol { margin: 10px 0 10px 22px; }
+        .ai-text li { margin-bottom: 6px; }
         .typing-indicator { display: flex; gap: 5px; padding: 4px 0; }
         .typing-indicator span { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 1.2s infinite; }
         .typing-indicator span:nth-child(2) { animation-delay: .2s; }
@@ -335,15 +350,31 @@
             --shadow-soft: 0 8px 24px rgba(0,0,0,.24);
             --shadow-card: 0 12px 30px rgba(0,0,0,.22);
             --ease-smooth: cubic-bezier(.2,.8,.2,1);
+            --app-bg-layer1: radial-gradient(circle at 82% 8%, rgba(0,230,118,.07), transparent 36%);
+            --app-bg-layer2: radial-gradient(circle at 18% 92%, rgba(0,230,118,.05), transparent 42%);
         }
         :root.light {
             --shadow-soft: 0 8px 24px rgba(0,0,0,.08);
             --shadow-card: 0 12px 30px rgba(0,0,0,.12);
         }
         body, html {
-            background: radial-gradient(circle at 82% 8%, rgba(0,230,118,.07), transparent 36%),
-                        radial-gradient(circle at 18% 92%, rgba(0,230,118,.05), transparent 42%),
-                        var(--bg);
+            background: var(--app-bg-layer1), var(--app-bg-layer2), var(--bg);
+        }
+        body.scene-neon {
+            --app-bg-layer1: radial-gradient(circle at 82% 8%, rgba(0,230,118,.08), transparent 34%);
+            --app-bg-layer2: radial-gradient(circle at 14% 92%, rgba(0,230,118,.06), transparent 44%);
+        }
+        body.scene-aurora {
+            --app-bg-layer1: radial-gradient(circle at 82% 10%, rgba(96,255,190,.11), transparent 34%);
+            --app-bg-layer2: radial-gradient(circle at 18% 90%, rgba(74,131,255,.10), transparent 46%);
+        }
+        body.scene-carbon {
+            --app-bg-layer1: linear-gradient(125deg, rgba(0,0,0,.18) 0%, rgba(255,255,255,.02) 100%);
+            --app-bg-layer2: repeating-linear-gradient(45deg, rgba(0,230,118,.03) 0 2px, transparent 2px 8px);
+        }
+        body.scene-sunset {
+            --app-bg-layer1: radial-gradient(circle at 82% 12%, rgba(255,160,80,.14), transparent 36%);
+            --app-bg-layer2: radial-gradient(circle at 14% 88%, rgba(255,70,120,.10), transparent 46%);
         }
         aside {
             background: linear-gradient(180deg, rgba(24,24,24,.93) 0%, rgba(17,17,17,.97) 100%);
@@ -490,6 +521,38 @@
             width: 100%; background: #101010; border: 1px solid #2c2c2c; border-radius: 10px; color: var(--text);
             padding: 11px 12px; font-size: 14px; outline: none; transition: border-color .2s var(--ease-smooth), box-shadow .2s var(--ease-smooth);
             font-family: 'Manrope', sans-serif;
+        }
+        .profile-toggle-field { flex-direction: row; align-items: center; justify-content: space-between; }
+        .profile-toggle-field input[type="checkbox"] {
+            appearance: none;
+            width: 46px;
+            height: 26px;
+            border-radius: 999px;
+            border: 1px solid #3a3a3a;
+            background: #171717;
+            position: relative;
+            cursor: pointer;
+            transition: .2s;
+            padding: 0;
+        }
+        .profile-toggle-field input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #888;
+            transition: .2s;
+        }
+        .profile-toggle-field input[type="checkbox"]:checked {
+            border-color: rgba(0,230,118,.5);
+            background: #113220;
+        }
+        .profile-toggle-field input[type="checkbox"]:checked::after {
+            left: 22px;
+            background: #00e676;
         }
         .profile-field textarea { resize: vertical; min-height: 84px; }
         .profile-field input:focus, .profile-field textarea:focus, .profile-field select:focus {
