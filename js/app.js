@@ -366,7 +366,20 @@ function setAdminPanelStatus(message = '', isError = false) {
     const el = document.getElementById('admin-panel-status');
     if (!el) return;
     el.textContent = message;
-    el.style.color = isError ? 'var(--danger)' : '#999';
+    el.style.color = isError ? 'var(--danger)' : '#8ef7ca';
+}
+
+function formatLastActivity(ts) {
+    const value = Number(ts || 0);
+    if (!Number.isFinite(value) || value <= 0) return 'нет данных';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'нет данных';
+    return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
 function renderAdminUsersList(rows = []) {
@@ -383,6 +396,7 @@ function renderAdminUsersList(rows = []) {
             <div>
                 <div class="admin-user-name">${escHtml(row.name)}</div>
                 <div class="admin-user-meta">${escHtml(row.plan.toUpperCase())} · чат ${row.chatUsed}, изображения ${row.imageUsed}, what-if ${row.whatIfUsed}</div>
+                <div class="admin-user-last">Последняя активность: ${escHtml(formatLastActivity(row.lastActivityTs))}</div>
             </div>
             <div class="admin-user-count">${row.totalUsed}</div>
         </div>
@@ -397,6 +411,7 @@ async function loadAdminPanelUsers() {
         const today = getLocalDateKey();
         const profilesSnap = await getDocs(collectionGroup(db, 'profile'));
         const usageSnap = await getDocs(collectionGroup(db, 'usage'));
+        const sessionsSnap = await getDocs(collectionGroup(db, 'sessions'));
 
         const profileMap = new Map();
         profilesSnap.forEach((snap) => {
@@ -422,14 +437,27 @@ async function loadAdminPanelUsers() {
             usageMap.set(uid, {
                 chatUsed: isToday ? Number(u.chatUsed || 0) : 0,
                 imageUsed: isToday ? Number(u.imageUsed || 0) : 0,
-                whatIfUsed: isToday ? Number(u.whatIfUsed || 0) : 0
+                whatIfUsed: isToday ? Number(u.whatIfUsed || 0) : 0,
+                updatedAt: Number(u.updatedAt || 0)
             });
         });
 
-        const allUids = new Set([...profileMap.keys(), ...usageMap.keys()]);
+        const sessionLastMap = new Map();
+        sessionsSnap.forEach((snap) => {
+            const uid = snap.ref?.parent?.parent?.id || '';
+            if (!uid) return;
+            const s = snap.data() || {};
+            const ts = Number(s.updatedAt || 0);
+            if (!Number.isFinite(ts) || ts <= 0) return;
+            const prev = Number(sessionLastMap.get(uid) || 0);
+            if (ts > prev) sessionLastMap.set(uid, ts);
+        });
+
+        const allUids = new Set([...profileMap.keys(), ...usageMap.keys(), ...sessionLastMap.keys()]);
         const rows = [...allUids].map((uid) => {
             const p = profileMap.get(uid) || { name: `User ${uid.slice(0, 6)}`, avatar: '', plan: 'free' };
-            const u = usageMap.get(uid) || { chatUsed: 0, imageUsed: 0, whatIfUsed: 0 };
+            const u = usageMap.get(uid) || { chatUsed: 0, imageUsed: 0, whatIfUsed: 0, updatedAt: 0 };
+            const lastActivityTs = Math.max(Number(u.updatedAt || 0), Number(sessionLastMap.get(uid) || 0));
             return {
                 uid,
                 name: p.name,
@@ -438,9 +466,14 @@ async function loadAdminPanelUsers() {
                 chatUsed: u.chatUsed,
                 imageUsed: u.imageUsed,
                 whatIfUsed: u.whatIfUsed,
-                totalUsed: u.chatUsed + u.imageUsed + u.whatIfUsed
+                totalUsed: u.chatUsed + u.imageUsed + u.whatIfUsed,
+                lastActivityTs
             };
-        }).sort((a, b) => b.totalUsed - a.totalUsed || a.name.localeCompare(b.name, 'ru'));
+        }).sort((a, b) =>
+            b.totalUsed - a.totalUsed
+            || (Number(b.lastActivityTs || 0) - Number(a.lastActivityTs || 0))
+            || a.name.localeCompare(b.name, 'ru')
+        );
 
         renderAdminUsersList(rows);
         setAdminPanelStatus(`Пользователей: ${rows.length} · обновлено ${new Date().toLocaleTimeString()}`);
